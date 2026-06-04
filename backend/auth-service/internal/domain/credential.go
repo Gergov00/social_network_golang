@@ -23,7 +23,7 @@ type RefreshToken struct {
 	UsedAt    *time.Time
 	RevokedAt *time.Time
 	ExpiresAt time.Time
-	UserAgent string
-	IP        netip.Addr
+	UserAgent *string
+	IP        *netip.Addr
 	CreatedAt time.Time
 }
