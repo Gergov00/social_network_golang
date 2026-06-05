@@ -31,7 +31,7 @@ func (m *TxManager) WithinTx(ctx context.Context, fn func(ctx context.Context) e
 	}
 	defer tx.Rollback(ctx)
 
-	ctx := context.WithValue(ctx, txKey{}, tx)
+	ctx = context.WithValue(ctx, txKey{}, tx)
 
 	err = fn(ctx)
 	if err != nil {
