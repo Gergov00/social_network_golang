@@ -1,0 +1,51 @@
+# ahishka — локальная инфраструктура для разработки.
+# Пока тут только Postgres для auth-service (database-per-service:
+# у каждого сервиса со временем будет своя БД/инстанс).
+#
+# Запуск:   docker compose up -d
+# Логи:     docker compose logs -f postgres-auth
+# Стоп:     docker compose down          (данные сохранятся в volume)
+# Снести БД: docker compose down -v      (УДАЛИТ том с данными)
+
+services:
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: ahishka-postgres-auth
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: auth
+      POSTGRES_DB: auth_db
+    ports:
+      - "5435:5432"            # host:container — подключайся с хоста на localhost:5432
+    volumes:
+      - pg_auth_data:/var/lib/postgresql/data
+    healthcheck:
+      # контейнер станет "healthy", только когда БД реально готова принимать запросы
+      test: ["CMD-SHELL", "pg_isready -U auth -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ahishka
+
+  # Лёгкий веб-GUI для БД (опционально, удобно смотреть таблицы глазами).
+  # Открыть: http://localhost:8081  (System: PostgreSQL, Server: postgres-auth, User/Pass/DB: auth/auth/auth_db)
+  adminer:
+    image: adminer:4
+    container_name: ahishka-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - ahishka
+
+volumes:
+  pg_auth_data:                # именованный том — данные переживают `down` (но не `down -v`)
+
+networks:
+  ahishka:                     # общая сеть, в неё потом добавим auth-service, gateway и т.д.
+    driver: bridge

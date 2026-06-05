@@ -66,11 +66,15 @@ func (m *Manager) NewRefreshToken() (raw string, hash string, err error) {
 		return "", "", err
 	}
 	raw = base64.URLEncoding.EncodeToString(rawBytes)
-	hash = HashRefreshToken(raw)
+	hash = m.HashRefreshToken(raw)
 	return
 }
 
-func HashRefreshToken(raw string) (hash string) {
+func (m *Manager) HashRefreshToken(raw string) (hash string) {
 	hashed := sha256.Sum256([]byte(raw))
 	return base64.URLEncoding.EncodeToString(hashed[:])
+}
+
+func (m *Manager) RefreshTokenTTL() time.Duration {
+	return m.refreshTTL
 }

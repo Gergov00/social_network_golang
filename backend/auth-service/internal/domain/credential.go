@@ -1,7 +1,6 @@
 package domain
 
 import (
-	
 	"net/netip"
 	"time"
 

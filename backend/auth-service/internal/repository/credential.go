@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,11 +24,16 @@ func NewCredential(pool *pgxpool.Pool) *CredentialRepo {
 }
 
 func (c *CredentialRepo) Create(ctx context.Context, credential *domain.Credential) error {
-
 	query := `INSERT INTO credentials (id, email, password_hash, created_at) VALUES ($1, $2, $3, $4)`
 
 	_, err := c.pool.Exec(ctx, query, credential.ID, credential.Email, credential.PasswordHash, credential.CreatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			if pgErr.ConstraintName == "credentials_email_key" {
+				return domain.ErrEmailTaken
+			}
+		}
 		return err
 	}
 
