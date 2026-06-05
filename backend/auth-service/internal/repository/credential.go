@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"auth-service/internal/domain"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -37,6 +39,10 @@ func (c *CredentialRepo) GetByEmail(ctx context.Context, email string) (*domain.
 	query := `SELECT id, email, password_hash, created_at FROM credentials WHERE email = $1`
 	err := c.pool.QueryRow(ctx, query, email).Scan(&cred.ID, &cred.Email, &cred.PasswordHash, &cred.CreatedAt)
 	if err != nil {
+		if errors.Is(err,
+			pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
 	return &cred, nil

@@ -3,9 +3,11 @@ package repository
 import (
 	"auth-service/internal/domain"
 	"context"
+	"errors"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RefreshRepo struct {
@@ -33,6 +35,10 @@ func (r *RefreshRepo) GetByHash(ctx context.Context, tokenHash string) (*domain.
 	query := `SELECT id, user_id, token_hash, family_id, used_at, revoked_at, expires_at, user_agent, ip, created_at FROM refresh_tokens WHERE token_hash = $1`
 	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.FamilyID, &token.UsedAt, &token.RevokedAt, &token.ExpiresAt, &token.UserAgent, &token.IP, &token.CreatedAt)
 	if err != nil {
+		if errors.Is(err,
+			pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
 	return &token, nil
@@ -61,4 +67,3 @@ func (r *RefreshRepo) RevokeByFamilyID(ctx context.Context, familyID uuid.UUID) 
 	_, err := r.pool.Exec(ctx, query, familyID)
 	return err
 }
-
