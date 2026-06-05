@@ -1,4 +1,4 @@
-package http
+package web
 
 type registerRequest struct {
 	Email    string `json:"email"`
