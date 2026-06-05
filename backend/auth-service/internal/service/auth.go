@@ -13,14 +13,16 @@ import (
 type AuthService struct {
 	credRepo    domain.CredentialRepository
 	refreshRepo domain.RefreshTokenRepository
+	tx          domain.TxManager
 	tokenProv   domain.TokenProvider
 }
 
-func NewAuthService(credRepo domain.CredentialRepository, refreshRepo domain.RefreshTokenRepository, tokenProv domain.TokenProvider) *AuthService {
+func NewAuthService(credRepo domain.CredentialRepository, refreshRepo domain.RefreshTokenRepository, tokenProv domain.TokenProvider, tx domain.TxManager) *AuthService {
 	return &AuthService{
 		credRepo:    credRepo,
 		refreshRepo: refreshRepo,
 		tokenProv:   tokenProv,
+		tx:          tx,
 	}
 }
 
@@ -30,16 +32,19 @@ func (s *AuthService) Register(ctx context.Context, email, password string, meta
 	if err != nil {
 		return domain.TokenPair{}, err
 	}
+
 	cred := &domain.Credential{
 		ID:           uuid.New(),
 		Email:        email,
 		PasswordHash: hash,
 		CreatedAt:    time.Now(),
 	}
+
 	err = s.credRepo.Create(ctx, cred)
 	if err != nil {
 		return domain.TokenPair{}, err
 	}
+
 	familyID := uuid.New()
 	return s.issueTokens(ctx, cred.ID, familyID, meta)
 }
@@ -52,9 +57,11 @@ func (s *AuthService) Login(ctx context.Context, email, password string, meta do
 		}
 		return domain.TokenPair{}, err
 	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(cred.PasswordHash), []byte(password)); err != nil {
 		return domain.TokenPair{}, domain.ErrInvalidCredentials
 	}
+
 	familyID := uuid.New()
 	return s.issueTokens(ctx, cred.ID, familyID, meta)
 }
@@ -68,10 +75,12 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 		}
 		return err
 	}
+
 	err = s.refreshRepo.RevokeByFamilyID(ctx, storedToken.FamilyID)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -84,21 +93,34 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta dom
 		}
 		return domain.TokenPair{}, err
 	}
-	if storedToken.UsedAt != nil {
-		err = s.refreshRepo.RevokeByFamilyID(ctx, storedToken.FamilyID)
-		if err != nil {
-			return domain.TokenPair{}, err
-		}
-		return domain.TokenPair{}, domain.ErrTokenReused
-	}
+
 	if storedToken.RevokedAt != nil || time.Now().After(storedToken.ExpiresAt) {
 		return domain.TokenPair{}, domain.ErrInvalidToken
 	}
-	err = s.refreshRepo.MarkUsed(ctx, storedToken)
-	if err != nil {
-		return domain.TokenPair{}, err
+
+	var tokenPair domain.TokenPair
+	reuse := false
+	err = s.tx.WithinTx(ctx, func(txCtx context.Context) error {
+		marked, err := s.refreshRepo.MarkUsed(txCtx, storedToken.ID)
+		if err != nil {
+			return err
+		}
+		if !marked {
+			reuse = true
+			return domain.ErrTokenReused
+		}
+
+		tokenPair, err = s.issueTokens(txCtx, storedToken.UserID, storedToken.FamilyID, meta)
+		return err
+	})
+	if reuse {
+		if err := s.refreshRepo.RevokeByFamilyID(ctx, storedToken.FamilyID); err != nil {
+			return domain.TokenPair{}, err
+		}
+		return domain.TokenPair{}, domain.ErrTokenReused
+
 	}
-	return s.issueTokens(ctx, storedToken.UserID, storedToken.FamilyID, meta)
+	return tokenPair, err
 }
 
 func (s *AuthService) issueTokens(ctx context.Context, userID uuid.UUID, familyID uuid.UUID, meta domain.SessionMeta) (domain.TokenPair, error) {
@@ -106,10 +128,12 @@ func (s *AuthService) issueTokens(ctx context.Context, userID uuid.UUID, familyI
 	if err != nil {
 		return domain.TokenPair{}, err
 	}
+
 	refreshToken, refreshTokenHash, err := s.tokenProv.NewRefreshToken()
 	if err != nil {
 		return domain.TokenPair{}, err
 	}
+
 	err = s.refreshRepo.Create(ctx, &domain.RefreshToken{
 		ID:        uuid.New(),
 		UserID:    userID,
@@ -123,6 +147,7 @@ func (s *AuthService) issueTokens(ctx context.Context, userID uuid.UUID, familyI
 	if err != nil {
 		return domain.TokenPair{}, err
 	}
+
 	return domain.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,

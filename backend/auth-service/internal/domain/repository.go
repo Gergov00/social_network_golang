@@ -16,7 +16,7 @@ type CredentialRepository interface {
 type RefreshTokenRepository interface {
 	Create(ctx context.Context, token *RefreshToken) error
 	GetByHash(ctx context.Context, tokenHash string) (*RefreshToken, error)
-	MarkUsed(ctx context.Context, token *RefreshToken) error
+	MarkUsed(ctx context.Context, id uuid.UUID) (bool, error)
 	RevokeByID(ctx context.Context, id uuid.UUID) error
 	RevokeByUserID(ctx context.Context, userID uuid.UUID) error
 	RevokeByFamilyID(ctx context.Context, familyID uuid.UUID) error

@@ -16,3 +16,7 @@ type AuthService interface {
 	Logout(ctx context.Context, refreshToken string) error
 	Refresh(ctx context.Context, refreshToken string, meta SessionMeta) (TokenPair, error)
 }
+
+type TxManager interface {
+	WithinTx(ctx context.Context, fn func(ctx context.Context) error) error
+}

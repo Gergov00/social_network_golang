@@ -7,9 +7,9 @@ import (
 	"auth-service/internal/domain"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -28,15 +28,8 @@ func (c *CredentialRepo) Create(ctx context.Context, credential *domain.Credenti
 
 	_, err := c.pool.Exec(ctx, query, credential.ID, credential.Email, credential.PasswordHash, credential.CreatedAt)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			if pgErr.ConstraintName == "credentials_email_key" {
-				return domain.ErrEmailTaken
-			}
-		}
-		return err
+		return mapCredentialErr(err)
 	}
-
 	return nil
 }
 
@@ -58,11 +51,21 @@ func (c *CredentialRepo) GetByEmail(ctx context.Context, email string) (*domain.
 func (c *CredentialRepo) Update(ctx context.Context, credential *domain.Credential) error {
 	query := `UPDATE credentials SET email = $1, password_hash = $2 WHERE id = $3`
 	_, err := c.pool.Exec(ctx, query, credential.Email, credential.PasswordHash, credential.ID)
-	return err
+	return mapCredentialErr(err)
 }
 
 func (c *CredentialRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM credentials WHERE id = $1`
 	_, err := c.pool.Exec(ctx, query, id)
+	return err
+}
+
+func mapCredentialErr(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+		if pgErr.ConstraintName == "credentials_email_key" {
+			return domain.ErrEmailTaken
+		}
+	}
 	return err
 }
