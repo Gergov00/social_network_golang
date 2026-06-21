@@ -38,7 +38,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	tokenPair, err := h.service.Register(r.Context(), req.Email, req.Password, meta)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	h.setRefreshCookie(w, tokenPair.RefreshToken)
@@ -64,7 +64,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	tokenPair, err := h.service.Login(r.Context(), req.Email, req.Password, meta)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	h.setRefreshCookie(w, tokenPair.RefreshToken)
@@ -79,7 +79,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.service.Logout(r.Context(), refreshToken)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	h.clearRefreshCookie(w)
@@ -98,7 +98,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	tokenPair, err := h.service.Refresh(r.Context(), refreshToken, meta)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	h.setRefreshCookie(w, tokenPair.RefreshToken)

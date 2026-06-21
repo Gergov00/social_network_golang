@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var _ domain.CredentialRepository = (*CredentialRepo)(nil)
+
 type CredentialRepo struct {
 	pool *pgxpool.Pool
 }

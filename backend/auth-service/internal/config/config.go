@@ -15,6 +15,7 @@ type Config struct {
 	RefreshTTL   time.Duration
 	HTTPPort     string
 	CookieSecure bool
+	LogLevel     string
 }
 
 func Load() (*Config, error) {
@@ -26,6 +27,7 @@ func Load() (*Config, error) {
 		RefreshTTL:   getEnvDuration("JWT_REFRESH_TTL", 30*24*time.Hour),
 		HTTPPort:     getEnv("HTTP_PORT", ":8080"),
 		CookieSecure: getEnvBool("COOKIE_SECURE", true),
+		LogLevel:     getEnv("LOG_LEVEL", "info"),
 	}
 
 	if cfg.DBURL == "" {

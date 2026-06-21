@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"auth-service/internal/domain"
 	"context"
 
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,8 @@ type executor interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
+
+var _ domain.TxManager = (*TxManager)(nil)
 
 type TxManager struct {
 	px *pgxpool.Pool

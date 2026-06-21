@@ -1,8 +1,11 @@
 package web
 
-import "net/http"
+import (
+	"log/slog"
+	"net/http"
+)
 
-func NewRouter(h *AuthHandler) http.Handler {
+func NewRouter(h *AuthHandler, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /auth/register", h.Register)
 	mux.HandleFunc("POST /auth/login", h.Login)
@@ -13,5 +16,5 @@ func NewRouter(h *AuthHandler) http.Handler {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	return mux
+	return loggingMiddleware(logger)(recoverMiddleware(mux))
 }

@@ -4,25 +4,30 @@ import (
 	"auth-service/internal/domain"
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
+var _ domain.AuthService = (*AuthService)(nil)
+
 type AuthService struct {
 	credRepo    domain.CredentialRepository
 	refreshRepo domain.RefreshTokenRepository
 	tx          domain.TxManager
 	tokenProv   domain.TokenProvider
+	logger      *slog.Logger
 }
 
-func NewAuthService(credRepo domain.CredentialRepository, refreshRepo domain.RefreshTokenRepository, tokenProv domain.TokenProvider, tx domain.TxManager) *AuthService {
+func NewAuthService(credRepo domain.CredentialRepository, refreshRepo domain.RefreshTokenRepository, tokenProv domain.TokenProvider, tx domain.TxManager, logger *slog.Logger) *AuthService {
 	return &AuthService{
 		credRepo:    credRepo,
 		refreshRepo: refreshRepo,
 		tokenProv:   tokenProv,
 		tx:          tx,
+		logger:      logger,
 	}
 }
 
@@ -114,6 +119,10 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta dom
 		return err
 	})
 	if reuse {
+		s.logger.Warn("refresh token reuse detected",
+			"user_id", storedToken.UserID,
+			"family_id", storedToken.FamilyID,
+		)
 		if err := s.refreshRepo.RevokeByFamilyID(ctx, storedToken.FamilyID); err != nil {
 			return domain.TokenPair{}, err
 		}

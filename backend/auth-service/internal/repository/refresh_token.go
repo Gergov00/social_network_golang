@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var _ domain.RefreshTokenRepository = (*RefreshRepo)(nil)
+
 type RefreshRepo struct {
 	pool *pgxpool.Pool
 }

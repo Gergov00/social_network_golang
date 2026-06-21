@@ -2,14 +2,14 @@ package web
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	body, err := json.Marshal(data)
 	if err != nil {
-		log.Printf("Failed to marshal JSON response: %v", err)
+		slog.Default().Error("failed to marshal JSON response", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

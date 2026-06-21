@@ -3,11 +3,10 @@ package web
 import (
 	"auth-service/internal/domain"
 	"errors"
-	"log"
 	"net/http"
 )
 
-func writeError(w http.ResponseWriter, err error) {
+func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var status int
 	switch {
 	case errors.Is(err, domain.ErrEmailTaken):
@@ -18,7 +17,7 @@ func writeError(w http.ResponseWriter, err error) {
 		status = http.StatusUnauthorized // 401
 	default:
 		status = http.StatusInternalServerError // 500
-		log.Printf("Internal server error: %v", err)
+		loggerFrom(r.Context()).Error("internal server error", "error", err)
 	}
 	writeJSON(w, status, errorResponse{Error: http.StatusText(status)})
 }

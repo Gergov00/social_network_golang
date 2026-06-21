@@ -1,6 +1,7 @@
 package token
 
 import (
+	"auth-service/internal/domain"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -10,6 +11,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+var _ domain.TokenProvider = (*Manager)(nil)
 
 type Manager struct {
 	secret     []byte
