@@ -2,5 +2,5 @@ test_frontend
 .files
 CLAUDE.md
 .env
-.exe
-.txt
+*.exe
+*.txt
