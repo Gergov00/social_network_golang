@@ -1,0 +1,4 @@
+.env
+*.exe
+.git
+README.md

@@ -8,6 +8,23 @@
 # Снести БД: docker compose down -v      (УДАЛИТ том с данными)
 
 services:
+  auth-service:
+    build: ./backend/auth-service
+    container_name: ahishka-auth
+    environment:
+      DB_URL: postgres://auth:auth@postgres-auth:5432/auth_db?sslmode=disable
+      JWT_SECRET: dev-secret-change-me
+      HTTP_PORT: 10001
+      COOKIE_SECURE: "false"
+      LOG_LEVEL: info
+    ports:
+      - "10001:10001"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - ahishka
+
   postgres-auth:
     image: postgres:16-alpine
     container_name: ahishka-postgres-auth
