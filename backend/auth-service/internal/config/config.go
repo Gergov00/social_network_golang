@@ -16,6 +16,7 @@ type Config struct {
 	HTTPPort     string
 	CookieSecure bool
 	LogLevel     string
+	NATSURL      string
 }
 
 func Load() (*Config, error) {
@@ -28,6 +29,7 @@ func Load() (*Config, error) {
 		HTTPPort:     getEnv("HTTP_PORT", ":8080"),
 		CookieSecure: getEnvBool("COOKIE_SECURE", true),
 		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		NATSURL:      getEnv("NATS_URL", "nats://localhost:4222"),
 	}
 
 	if cfg.DBURL == "" {

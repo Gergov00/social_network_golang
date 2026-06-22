@@ -18,15 +18,23 @@ type AuthService struct {
 	refreshRepo domain.RefreshTokenRepository
 	tx          domain.TxManager
 	tokenProv   domain.TokenProvider
+	publisher   domain.EventPublisher
 	logger      *slog.Logger
 }
 
-func NewAuthService(credRepo domain.CredentialRepository, refreshRepo domain.RefreshTokenRepository, tokenProv domain.TokenProvider, tx domain.TxManager, logger *slog.Logger) *AuthService {
+func NewAuthService(
+	credRepo domain.CredentialRepository,
+	refreshRepo domain.RefreshTokenRepository,
+	tokenProv domain.TokenProvider,
+	tx domain.TxManager,
+	publisher domain.EventPublisher,
+	logger *slog.Logger) *AuthService {
 	return &AuthService{
 		credRepo:    credRepo,
 		refreshRepo: refreshRepo,
 		tokenProv:   tokenProv,
 		tx:          tx,
+		publisher:   publisher,
 		logger:      logger,
 	}
 }
@@ -51,7 +59,17 @@ func (s *AuthService) Register(ctx context.Context, email, password string, meta
 	}
 
 	familyID := uuid.New()
-	return s.issueTokens(ctx, cred.ID, familyID, meta)
+	tokenPair, err := s.issueTokens(ctx, cred.ID, familyID, meta)
+	if err != nil {
+		return domain.TokenPair{}, err
+	}
+
+	if err := s.publisher.PublishUserRegistered(ctx, cred.ID, cred.Email); err != nil {
+		s.logger.Error("publish user.registered failed", "user_id", cred.ID, "error", err)
+	}
+
+
+	return tokenPair, nil
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string, meta domain.SessionMeta) (domain.TokenPair, error) {

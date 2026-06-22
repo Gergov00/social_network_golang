@@ -3,6 +3,7 @@ package main
 import (
 	"auth-service/internal/config"
 	"auth-service/internal/domain"
+	"auth-service/internal/events"
 	"auth-service/internal/repository"
 	"auth-service/internal/service"
 	"auth-service/internal/token"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 )
@@ -22,6 +25,9 @@ func main() {
 	godotenv.Load()
 	app := fx.New(
 		fx.Provide(
+			fx.Annotate(events.NewPublisher, fx.As(new(domain.EventPublisher))),
+			NewNATS,
+			NewJetStream,
 			config.Load,
 			NewLogger,
 			fx.Annotate(repository.NewCredential, fx.As(new(domain.CredentialRepository))),
@@ -94,6 +100,25 @@ func NewDataBase(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (*pgx
 	})
 
 	return pool, nil
+}
+
+func NewNATS(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (*nats.Conn, error) {
+	nc, err := nats.Connect(cfg.NATSURL)
+	if err != nil {
+		return nil, err
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			logger.Info("draining nats connection")
+			return nc.Drain()
+		},
+	})
+	return nc, nil
+}
+
+func NewJetStream(nc *nats.Conn) (jetstream.JetStream, error) {
+	return jetstream.New(nc)
 }
 
 func NewAuthHandlerProvider(cfg *config.Config, service *service.AuthService) *web.AuthHandler {
