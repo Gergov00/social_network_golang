@@ -1,1 +1,7 @@
 go 1.26.3
+
+use (
+	./auth-service
+	./pkg
+	./user-service
+)
