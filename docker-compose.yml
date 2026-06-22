@@ -9,7 +9,9 @@
 
 services:
   auth-service:
-    build: ./backend/auth-service
+    build:
+      context: ./backend
+      dockerfile: auth-service/Dockerfile
     container_name: ahishka-auth
     environment:
       DB_URL: postgres://auth:auth@postgres-auth:5432/auth_db?sslmode=disable
@@ -17,11 +19,14 @@ services:
       HTTP_PORT: 10001
       COOKIE_SECURE: "false"
       LOG_LEVEL: info
+      NATS_URL: nats://nats:4222
     ports:
       - "10001:10001"
     depends_on:
       postgres-auth:
         condition: service_healthy
+      nats:
+        condition: service_started
     networks:
       - ahishka
 
@@ -46,6 +51,26 @@ services:
     networks:
       - ahishka
 
+  postgres-user:
+    image: postgres:16-alpine
+    container_name: ahishka-postgres-user
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user
+      POSTGRES_DB: user_db
+    ports:
+      - "5436:5432"            # host:container — с хоста подключайся на localhost:5436
+    volumes:
+      - pg_user_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d user_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ahishka
+
   # Лёгкий веб-GUI для БД (опционально, удобно смотреть таблицы глазами).
   # Открыть: http://localhost:8081  (System: PostgreSQL, Server: postgres-auth, User/Pass/DB: auth/auth/auth_db)
   adminer:
@@ -59,9 +84,28 @@ services:
         condition: service_healthy
     networks:
       - ahishka
+  
+  nats:
+    image: nats:2.10-alpine
+    container_name: ahishka-nats
+    command:
+      - "-js"
+      - "-sd"
+      - "/data"
+      - "-m"
+      - "8222"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    networks:
+      - ahishka
 
 volumes:
   pg_auth_data:                # именованный том — данные переживают `down` (но не `down -v`)
+  pg_user_data:
+  nats_data:
 
 networks:
   ahishka:                     # общая сеть, в неё потом добавим auth-service, gateway и т.д.
