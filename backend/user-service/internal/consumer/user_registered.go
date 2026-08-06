@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	streamName  = "EVENTS"
 	durableName = "user-service-user-registered"
 
 	// handleTimeout ограничивает время обработки одного сообщения, чтобы
@@ -53,7 +52,7 @@ func NewUserRegisteredConsumer(svc *service.UserService, logger *slog.Logger) *U
 // под удобным callback API). Вызывающий останавливает обработку через
 // cc.Stop() на возвращённом ConsumeContext.
 func (c *UserRegisteredConsumer) Start(ctx context.Context, js jetstream.JetStream) (jetstream.ConsumeContext, error) {
-	cons, err := js.CreateOrUpdateConsumer(ctx, streamName, jetstream.ConsumerConfig{
+	cons, err := js.CreateOrUpdateConsumer(ctx, events.StreamName, jetstream.ConsumerConfig{
 		Durable:       durableName,
 		FilterSubject: events.SubjectUserRegistered,
 		AckPolicy:     jetstream.AckExplicitPolicy,
