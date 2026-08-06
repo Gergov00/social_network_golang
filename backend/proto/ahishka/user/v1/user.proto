@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package ahishka.user.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "ahishka/pkg/gen/ahishka/user/v1;userv1";
+
+// UserService — профили пользователей. id сквозной через все сервисы:
+// его генерит auth при регистрации, здесь он же первичный ключ профиля.
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUserByHandle(GetUserByHandleRequest) returns (GetUserByHandleResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  string handle = 3;
+  string bio = 4;
+  string city = 5;
+  string work = 6;
+  bool verified = 7;
+  // optional, т.к. в БД avatar_url nullable (media-сервис отложен)
+  optional string avatar_url = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message GetUserByHandleRequest {
+  string handle = 1;
+}
+
+message GetUserByHandleResponse {
+  User user = 1;
+}
+
+// Обновляются только эти поля — verified/avatar_url/created_at меняются
+// другими сценариями (модерация, media), профиль их здесь не трогает.
+message UpdateProfileRequest {
+  string id = 1;
+  string name = 2;
+  string handle = 3;
+  string bio = 4;
+  string city = 5;
+  string work = 6;
+}
+
+message UpdateProfileResponse {
+  User user = 1;
+}
