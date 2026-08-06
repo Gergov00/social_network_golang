@@ -17,6 +17,11 @@ import (
 
 var _ userv1.UserServiceServer = (*UserHandler)(nil)
 
+// MaxBatchIDs — потолок на размер пачки. Без него один запрос
+// превращается в «прочитай мне всю таблицу users». 100 с запасом
+// покрывает страницу ленты (limit там максимум 50).
+const MaxBatchIDs = 100
+
 type UserHandler struct {
 	// Встраивание обязательно: оно даёт forward-compatibility, когда в
 	// контракт добавят новый rpc, а этот хендлер ещё его не реализует.
@@ -112,6 +117,38 @@ func (h *UserHandler) UpdateProfile(ctx context.Context, req *userv1.UpdateProfi
 		return nil, mapError(err)
 	}
 	return &userv1.UpdateProfileResponse{User: toProto(updated)}, nil
+}
+
+func (h *UserHandler) BatchGetUsers(ctx context.Context, req *userv1.BatchGetUsersRequest) (*userv1.BatchGetUsersResponse, error) {
+	raw := req.GetIds()
+	if len(raw) == 0 {
+		return &userv1.BatchGetUsersResponse{}, nil
+	}
+	if len(raw) > MaxBatchIDs {
+		return nil, status.Error(codes.InvalidArgument, "too many ids")
+	}
+
+	ids := make([]uuid.UUID, 0, len(raw))
+	for _, value := range raw {
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "ids must be uuids")
+		}
+		ids = append(ids, id)
+	}
+
+	users, err := h.svc.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, mapError(err)
+	}
+
+	// Отсутствующие профили в ответ просто не попадают — это не NotFound:
+	// вызывающий склеивает посты с авторами и обязан переживать пробел.
+	resp := &userv1.BatchGetUsersResponse{Users: make([]*userv1.User, 0, len(users))}
+	for i := range users {
+		resp.Users = append(resp.Users, toProto(&users[i]))
+	}
+	return resp, nil
 }
 
 // mapError переводит доменные ошибки в gRPC-коды. Наружу не отдаём текст

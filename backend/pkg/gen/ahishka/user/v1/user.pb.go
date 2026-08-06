@@ -450,6 +450,100 @@ func (x *UpdateProfileResponse) GetUser() *User {
 	return nil
 }
 
+// BatchGetUsers существует ради ленты: gateway склеивает посты с авторами,
+// и N отдельных GetUser на страницу — это N round-trip'ов на один экран.
+//
+// id, для которых профиля нет, просто отсутствуют в ответе: это не ошибка.
+// Профиль заводится асинхронно (user.registered), и «пост есть, профиля ещё
+// нет» — законное состояние, которое вызывающий обязан переживать.
+type BatchGetUsersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ids           []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchGetUsersRequest) Reset() {
+	*x = BatchGetUsersRequest{}
+	mi := &file_ahishka_user_v1_user_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchGetUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchGetUsersRequest) ProtoMessage() {}
+
+func (x *BatchGetUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_user_v1_user_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchGetUsersRequest.ProtoReflect.Descriptor instead.
+func (*BatchGetUsersRequest) Descriptor() ([]byte, []int) {
+	return file_ahishka_user_v1_user_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *BatchGetUsersRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+type BatchGetUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchGetUsersResponse) Reset() {
+	*x = BatchGetUsersResponse{}
+	mi := &file_ahishka_user_v1_user_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchGetUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchGetUsersResponse) ProtoMessage() {}
+
+func (x *BatchGetUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_user_v1_user_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchGetUsersResponse.ProtoReflect.Descriptor instead.
+func (*BatchGetUsersResponse) Descriptor() ([]byte, []int) {
+	return file_ahishka_user_v1_user_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *BatchGetUsersResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
 var File_ahishka_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_ahishka_user_v1_user_proto_rawDesc = "" +
@@ -492,11 +586,16 @@ const file_ahishka_user_v1_user_proto_rawDesc = "" +
 	"\x05_cityB\a\n" +
 	"\x05_work\"B\n" +
 	"\x15UpdateProfileResponse\x12)\n" +
-	"\x04user\x18\x01 \x01(\v2\x15.ahishka.user.v1.UserR\x04user2\xa1\x02\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.ahishka.user.v1.UserR\x04user\"(\n" +
+	"\x14BatchGetUsersRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\"D\n" +
+	"\x15BatchGetUsersResponse\x12+\n" +
+	"\x05users\x18\x01 \x03(\v2\x15.ahishka.user.v1.UserR\x05users2\x81\x03\n" +
 	"\vUserService\x12L\n" +
 	"\aGetUser\x12\x1f.ahishka.user.v1.GetUserRequest\x1a .ahishka.user.v1.GetUserResponse\x12d\n" +
 	"\x0fGetUserByHandle\x12'.ahishka.user.v1.GetUserByHandleRequest\x1a(.ahishka.user.v1.GetUserByHandleResponse\x12^\n" +
-	"\rUpdateProfile\x12%.ahishka.user.v1.UpdateProfileRequest\x1a&.ahishka.user.v1.UpdateProfileResponseB(Z&ahishka/pkg/gen/ahishka/user/v1;userv1b\x06proto3"
+	"\rUpdateProfile\x12%.ahishka.user.v1.UpdateProfileRequest\x1a&.ahishka.user.v1.UpdateProfileResponse\x12^\n" +
+	"\rBatchGetUsers\x12%.ahishka.user.v1.BatchGetUsersRequest\x1a&.ahishka.user.v1.BatchGetUsersResponseB(Z&ahishka/pkg/gen/ahishka/user/v1;userv1b\x06proto3"
 
 var (
 	file_ahishka_user_v1_user_proto_rawDescOnce sync.Once
@@ -510,7 +609,7 @@ func file_ahishka_user_v1_user_proto_rawDescGZIP() []byte {
 	return file_ahishka_user_v1_user_proto_rawDescData
 }
 
-var file_ahishka_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_ahishka_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_ahishka_user_v1_user_proto_goTypes = []any{
 	(*User)(nil),                    // 0: ahishka.user.v1.User
 	(*GetUserRequest)(nil),          // 1: ahishka.user.v1.GetUserRequest
@@ -519,25 +618,30 @@ var file_ahishka_user_v1_user_proto_goTypes = []any{
 	(*GetUserByHandleResponse)(nil), // 4: ahishka.user.v1.GetUserByHandleResponse
 	(*UpdateProfileRequest)(nil),    // 5: ahishka.user.v1.UpdateProfileRequest
 	(*UpdateProfileResponse)(nil),   // 6: ahishka.user.v1.UpdateProfileResponse
-	(*timestamppb.Timestamp)(nil),   // 7: google.protobuf.Timestamp
+	(*BatchGetUsersRequest)(nil),    // 7: ahishka.user.v1.BatchGetUsersRequest
+	(*BatchGetUsersResponse)(nil),   // 8: ahishka.user.v1.BatchGetUsersResponse
+	(*timestamppb.Timestamp)(nil),   // 9: google.protobuf.Timestamp
 }
 var file_ahishka_user_v1_user_proto_depIdxs = []int32{
-	7, // 0: ahishka.user.v1.User.created_at:type_name -> google.protobuf.Timestamp
-	7, // 1: ahishka.user.v1.User.updated_at:type_name -> google.protobuf.Timestamp
-	0, // 2: ahishka.user.v1.GetUserResponse.user:type_name -> ahishka.user.v1.User
-	0, // 3: ahishka.user.v1.GetUserByHandleResponse.user:type_name -> ahishka.user.v1.User
-	0, // 4: ahishka.user.v1.UpdateProfileResponse.user:type_name -> ahishka.user.v1.User
-	1, // 5: ahishka.user.v1.UserService.GetUser:input_type -> ahishka.user.v1.GetUserRequest
-	3, // 6: ahishka.user.v1.UserService.GetUserByHandle:input_type -> ahishka.user.v1.GetUserByHandleRequest
-	5, // 7: ahishka.user.v1.UserService.UpdateProfile:input_type -> ahishka.user.v1.UpdateProfileRequest
-	2, // 8: ahishka.user.v1.UserService.GetUser:output_type -> ahishka.user.v1.GetUserResponse
-	4, // 9: ahishka.user.v1.UserService.GetUserByHandle:output_type -> ahishka.user.v1.GetUserByHandleResponse
-	6, // 10: ahishka.user.v1.UserService.UpdateProfile:output_type -> ahishka.user.v1.UpdateProfileResponse
-	8, // [8:11] is the sub-list for method output_type
-	5, // [5:8] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	9,  // 0: ahishka.user.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 1: ahishka.user.v1.User.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 2: ahishka.user.v1.GetUserResponse.user:type_name -> ahishka.user.v1.User
+	0,  // 3: ahishka.user.v1.GetUserByHandleResponse.user:type_name -> ahishka.user.v1.User
+	0,  // 4: ahishka.user.v1.UpdateProfileResponse.user:type_name -> ahishka.user.v1.User
+	0,  // 5: ahishka.user.v1.BatchGetUsersResponse.users:type_name -> ahishka.user.v1.User
+	1,  // 6: ahishka.user.v1.UserService.GetUser:input_type -> ahishka.user.v1.GetUserRequest
+	3,  // 7: ahishka.user.v1.UserService.GetUserByHandle:input_type -> ahishka.user.v1.GetUserByHandleRequest
+	5,  // 8: ahishka.user.v1.UserService.UpdateProfile:input_type -> ahishka.user.v1.UpdateProfileRequest
+	7,  // 9: ahishka.user.v1.UserService.BatchGetUsers:input_type -> ahishka.user.v1.BatchGetUsersRequest
+	2,  // 10: ahishka.user.v1.UserService.GetUser:output_type -> ahishka.user.v1.GetUserResponse
+	4,  // 11: ahishka.user.v1.UserService.GetUserByHandle:output_type -> ahishka.user.v1.GetUserByHandleResponse
+	6,  // 12: ahishka.user.v1.UserService.UpdateProfile:output_type -> ahishka.user.v1.UpdateProfileResponse
+	8,  // 13: ahishka.user.v1.UserService.BatchGetUsers:output_type -> ahishka.user.v1.BatchGetUsersResponse
+	10, // [10:14] is the sub-list for method output_type
+	6,  // [6:10] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_ahishka_user_v1_user_proto_init() }
@@ -553,7 +657,7 @@ func file_ahishka_user_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ahishka_user_v1_user_proto_rawDesc), len(file_ahishka_user_v1_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -45,6 +45,10 @@ func (s *UserService) GetByHandle(ctx context.Context, handle string) (*domain.U
 	return s.repo.GetByHandle(ctx, handle)
 }
 
+func (s *UserService) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.User, error) {
+	return s.repo.GetByIDs(ctx, ids)
+}
+
 func (s *UserService) UpdateProfile(ctx context.Context, user *domain.User) (*domain.User, error) {
 	user.UpdatedAt = time.Now()
 

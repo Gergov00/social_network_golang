@@ -54,6 +54,15 @@ func (f *fakeUserClient) UpdateProfile(ctx context.Context, in *userv1.UpdatePro
 	return &userv1.UpdateProfileResponse{User: f.user}, nil
 }
 
+// Пустая заглушка: тесты профиля пачкой не пользуются. Считающая версия
+// живёт в post_test.go (batchUserClient) — там она и проверяется.
+func (f *fakeUserClient) BatchGetUsers(ctx context.Context, in *userv1.BatchGetUsersRequest, opts ...grpc.CallOption) (*userv1.BatchGetUsersResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &userv1.BatchGetUsersResponse{}, nil
+}
+
 func testUser(id uuid.UUID) *userv1.User {
 	avatar := "https://example.com/a.png"
 	return &userv1.User{

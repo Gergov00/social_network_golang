@@ -30,6 +30,9 @@ type fakeRepo struct {
 	// Update — тесты partial-update сверяются с ней, чтобы убедиться, что
 	// хендлер смерджил поля правильно (а не просто ответил правильно).
 	updateArg *domain.User
+
+	users  []domain.User
+	gotIDs []uuid.UUID
 }
 
 func (f *fakeRepo) Create(ctx context.Context, user *domain.User) error { return nil }
@@ -51,6 +54,14 @@ func (f *fakeRepo) GetByHandle(ctx context.Context, handle string) (*domain.User
 		return nil, f.getErr
 	}
 	return f.user, nil
+}
+
+func (f *fakeRepo) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.User, error) {
+	f.gotIDs = ids
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return f.users, nil
 }
 
 // newTestClient поднимает настоящий gRPC-сервер поверх bufconn и возвращает
@@ -364,5 +375,86 @@ func TestUpdateProfileExplicitEmptyBioBlanksIt(t *testing.T) {
 	}
 	if got.GetCity() != stored.City {
 		t.Errorf("city changed by absent field: got %q, want %q", got.GetCity(), stored.City)
+	}
+}
+
+func TestBatchGetUsersReturnsFound(t *testing.T) {
+	first := uuid.New()
+	second := uuid.New()
+	repo := &fakeRepo{users: []domain.User{
+		{ID: first, Handle: "one", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{ID: second, Handle: "two", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+	}}
+	client := newTestClient(t, repo)
+
+	resp, err := client.BatchGetUsers(context.Background(), &userv1.BatchGetUsersRequest{
+		Ids: []string{first.String(), second.String()},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetUsers(): %v", err)
+	}
+	if len(resp.GetUsers()) != 2 {
+		t.Fatalf("вернулось %d пользователей, want 2", len(resp.GetUsers()))
+	}
+	if len(repo.gotIDs) != 2 {
+		t.Errorf("репозиторий получил %d id, want 2", len(repo.gotIDs))
+	}
+}
+
+// Отсутствующий профиль — не ошибка: gateway обязан уметь показать пост,
+// автор которого ещё не завёлся (профиль создаётся асинхронно).
+func TestBatchGetUsersMissingIsNotError(t *testing.T) {
+	client := newTestClient(t, &fakeRepo{users: nil})
+
+	resp, err := client.BatchGetUsers(context.Background(), &userv1.BatchGetUsersRequest{
+		Ids: []string{uuid.New().String()},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetUsers() err = %v, отсутствующий профиль не должен быть ошибкой", err)
+	}
+	if len(resp.GetUsers()) != 0 {
+		t.Errorf("вернулось %d пользователей, want 0", len(resp.GetUsers()))
+	}
+}
+
+func TestBatchGetUsersEmptyRequest(t *testing.T) {
+	repo := &fakeRepo{}
+	client := newTestClient(t, repo)
+
+	resp, err := client.BatchGetUsers(context.Background(), &userv1.BatchGetUsersRequest{})
+	if err != nil {
+		t.Fatalf("BatchGetUsers(): %v", err)
+	}
+	if len(resp.GetUsers()) != 0 {
+		t.Errorf("вернулось %d пользователей, want 0", len(resp.GetUsers()))
+	}
+	if repo.gotIDs != nil {
+		t.Error("на пустой список хендлер не должен ходить в репозиторий")
+	}
+}
+
+func TestBatchGetUsersRejectsNonUUID(t *testing.T) {
+	client := newTestClient(t, &fakeRepo{})
+
+	_, err := client.BatchGetUsers(context.Background(), &userv1.BatchGetUsersRequest{
+		Ids: []string{uuid.New().String(), "не-uuid"},
+	})
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", got)
+	}
+}
+
+// Потолок на размер пачки: запрос без него превращается в «прочитай мне
+// всю таблицу users одним вызовом».
+func TestBatchGetUsersRejectsOversizedBatch(t *testing.T) {
+	ids := make([]string, MaxBatchIDs+1)
+	for i := range ids {
+		ids[i] = uuid.New().String()
+	}
+	client := newTestClient(t, &fakeRepo{})
+
+	_, err := client.BatchGetUsers(context.Background(), &userv1.BatchGetUsersRequest{Ids: ids})
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument (пачка длиннее %d)", got, MaxBatchIDs)
 	}
 }

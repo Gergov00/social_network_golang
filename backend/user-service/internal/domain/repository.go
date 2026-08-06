@@ -11,4 +11,7 @@ type UserRepository interface {
 	Update(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetByHandle(ctx context.Context, handle string) (*User, error)
+	// GetByIDs отдаёт найденные профили; отсутствующие id просто не
+	// попадают в результат (порядок результата не гарантирован).
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 }

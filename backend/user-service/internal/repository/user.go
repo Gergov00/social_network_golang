@@ -67,6 +67,33 @@ func (u *UserRepo) GetByHandle(ctx context.Context, handle string) (*domain.User
 	return scanUser(u.pool.QueryRow(ctx, query, handle))
 }
 
+func (u *UserRepo) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	// = ANY($1) вместо IN (...): один параметр вместо склейки плейсхолдеров,
+	// и план запроса не меняется от размера пачки.
+	query := `SELECT ` + userColumns + ` FROM users WHERE id = ANY($1)`
+
+	rows, err := u.pool.Query(ctx, query, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make([]domain.User, 0, len(ids))
+	for rows.Next() {
+		var user domain.User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Handle, &user.Bio, &user.City,
+			&user.Work, &user.Verified, &user.AvatarURL, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, rows.Err()
+}
+
 func scanUser(row pgx.Row) (*domain.User, error) {
 	var user domain.User
 

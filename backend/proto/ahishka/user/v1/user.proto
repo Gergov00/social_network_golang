@@ -12,6 +12,7 @@ service UserService {
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
   rpc GetUserByHandle(GetUserByHandleRequest) returns (GetUserByHandleResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  rpc BatchGetUsers(BatchGetUsersRequest) returns (BatchGetUsersResponse);
 }
 
 message User {
@@ -62,4 +63,18 @@ message UpdateProfileRequest {
 
 message UpdateProfileResponse {
   User user = 1;
+}
+
+// BatchGetUsers существует ради ленты: gateway склеивает посты с авторами,
+// и N отдельных GetUser на страницу — это N round-trip'ов на один экран.
+//
+// id, для которых профиля нет, просто отсутствуют в ответе: это не ошибка.
+// Профиль заводится асинхронно (user.registered), и «пост есть, профиля ещё
+// нет» — законное состояние, которое вызывающий обязан переживать.
+message BatchGetUsersRequest {
+  repeated string ids = 1;
+}
+
+message BatchGetUsersResponse {
+  repeated User users = 1;
 }

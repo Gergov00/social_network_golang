@@ -65,6 +65,10 @@ func (panickingUserClient) UpdateProfile(ctx context.Context, in *userv1.UpdateP
 	return nil, nil
 }
 
+func (panickingUserClient) BatchGetUsers(ctx context.Context, in *userv1.BatchGetUsersRequest, opts ...grpc.CallOption) (*userv1.BatchGetUsersResponse, error) {
+	panic("upstream exploded")
+}
+
 // TestRouterRecoveredPanicIsLoggedWithCorrectStatus guards the load-bearing
 // middleware composition order documented in NewRouter:
 // LoggingMiddleware(logger)(RecoverMiddleware(mux)) — logging OUTSIDE,

@@ -100,6 +100,10 @@ func (r *fakeRepo) GetByHandle(_ context.Context, _ string) (*domain.User, error
 	return nil, domain.ErrNotFound
 }
 
+func (r *fakeRepo) GetByIDs(_ context.Context, _ []uuid.UUID) ([]domain.User, error) {
+	return nil, nil
+}
+
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
