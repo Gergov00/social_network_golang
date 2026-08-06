@@ -28,7 +28,10 @@ func NewAuthProxy(target string) (*httputil.ReverseProxy, error) {
 			r.SetURL(parsed)
 			// Путь сохраняем как есть: auth слушает те же /auth/*.
 			r.Out.URL.Path = r.In.URL.Path
-			r.Out.Host = r.In.Host
+			// Host НЕ пробрасываем с клиента: SetURL уже поставил Host
+			// таргета. Client-controlled Host — классический вектор
+			// Host-header-injection; тем, кому нужен исходный хост, его
+			// отдаёт SetXForwarded() через X-Forwarded-Host.
 			r.SetXForwarded()
 		},
 	}, nil

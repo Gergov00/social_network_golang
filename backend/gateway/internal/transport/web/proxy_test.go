@@ -25,6 +25,8 @@ func TestAuthProxyPassesRequestAndCookieThrough(t *testing.T) {
 			Value:    "opaque-token-value",
 			Path:     "/auth",
 			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
 		})
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"access_token":"header.payload.signature"}`))
@@ -62,13 +64,51 @@ func TestAuthProxyPassesRequestAndCookieThrough(t *testing.T) {
 	if len(cookies) != 1 || cookies[0].Name != "refresh_token" {
 		t.Fatalf("Set-Cookie did not survive proxying: %v", cookies)
 	}
-	if cookies[0].Value != "opaque-token-value" || !cookies[0].HttpOnly {
-		t.Errorf("cookie was altered in transit: %+v", cookies[0])
+	got := cookies[0]
+	if got.Value != "opaque-token-value" || !got.HttpOnly {
+		t.Errorf("cookie was altered in transit: %+v", got)
+	}
+	// These three attributes are the whole reason the cookie rides through a
+	// bare reverse proxy instead of a hand-rolled handler: Path scopes it to
+	// /auth, Secure/SameSite lock down transport and cross-site sending. If
+	// any of them got dropped or rewritten, the refresh flow would silently
+	// misbehave in the browser without any of the assertions above catching it.
+	if got.Path != "/auth" {
+		t.Errorf("cookie Path was altered in transit: got %q, want /auth", got.Path)
+	}
+	if !got.Secure {
+		t.Error("cookie Secure attribute was dropped in transit")
+	}
+	if got.SameSite != http.SameSiteStrictMode {
+		t.Errorf("cookie SameSite was altered in transit: got %v, want Strict", got.SameSite)
 	}
 }
 
+// NewAuthProxy has two independent ways to reject a bad target, and it's easy
+// to write a test that only ever exercises the first:
+//   - url.Parse itself returns an error (e.g. "://not a url" has no valid
+//     scheme separator at all).
+//   - url.Parse succeeds but leaves Scheme/Host empty (e.g. "auth-service" — a
+//     bare host with no "http://" prefix, exactly what a misconfigured
+//     AUTH_SERVICE_URL would look like), which only the explicit guard clause
+//     inside NewAuthProxy catches.
+//
+// Table-driven so both paths are visibly distinct and the second case can't
+// quietly stop testing anything if the first one is "fixed" to also satisfy it.
 func TestNewAuthProxyRejectsBadTarget(t *testing.T) {
-	if _, err := NewAuthProxy("://not a url"); err == nil {
-		t.Error("expected an error for a malformed target url, got nil")
+	cases := []struct {
+		name   string
+		target string
+	}{
+		{"malformed url: rejected by url.Parse itself", "://not a url"},
+		{"missing scheme/host: rejected by the guard clause", "auth-service"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := NewAuthProxy(tc.target); err == nil {
+				t.Errorf("expected an error for target %q, got nil", tc.target)
+			}
+		})
 	}
 }
