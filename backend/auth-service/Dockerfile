@@ -4,7 +4,7 @@ WORKDIR /src
 
 COPY go.work go.work.sum ./
 COPY auth-service/go.mod auth-service/go.sum ./auth-service/
-COPY pkg/go.mod ./pkg/
+COPY pkg/go.mod pkg/go.sum ./pkg/
 COPY user-service/go.mod ./user-service/
 RUN go mod download
 

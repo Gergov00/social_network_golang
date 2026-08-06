@@ -30,6 +30,26 @@ services:
     networks:
       - ahishka
 
+  user-service:
+    build:
+      context: ./backend
+      dockerfile: user-service/Dockerfile
+    container_name: ahishka-user
+    environment:
+      DB_URL: postgres://user:user@postgres-user:5432/user_db?sslmode=disable
+      GRPC_PORT: 50051
+      LOG_LEVEL: info
+      NATS_URL: nats://nats:4222
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    networks:
+      - ahishka
+
   postgres-auth:
     image: postgres:16-alpine
     container_name: ahishka-postgres-auth
