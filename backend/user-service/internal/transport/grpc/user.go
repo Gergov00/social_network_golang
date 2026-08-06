@@ -63,27 +63,51 @@ func (h *UserHandler) UpdateProfile(ctx context.Context, req *userv1.UpdateProfi
 		return nil, status.Error(codes.InvalidArgument, "id must be a uuid")
 	}
 
-	handle := strings.TrimSpace(req.GetHandle())
-	if handle == "" {
+	// handle не может быть явно очищен: он либо отсутствует в запросе (не
+	// трогаем), либо присутствует и обязан быть непустым.
+	if req.Handle != nil && strings.TrimSpace(req.GetHandle()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "handle must not be empty")
 	}
 
-	if _, err := h.svc.UpdateProfile(ctx, &domain.User{
-		ID:     id,
-		Name:   req.GetName(),
-		Handle: handle,
-		Bio:    req.GetBio(),
-		City:   req.GetCity(),
-		Work:   req.GetWork(),
-	}); err != nil {
+	// Partial update (PATCH-семантика): читаем текущего пользователя и
+	// накладываем только те поля, что реально присутствуют в запросе
+	// (req.X != nil), остальные остаются как есть. Отсутствующее поле —
+	// "оставить без изменений", присутствующее пустой строкой — "очистить".
+	//
+	// ВНИМАНИЕ: гонка read-modify-write. Между этим GetByID и UpdateProfile
+	// ниже нет ни транзакции, ни optimistic-concurrency токена, так что два
+	// конкурентных partial update могут затереть изменения друг друга
+	// (last-write-wins на уровне каждого запроса, не поля). Осознанное
+	// ограничение на этом этапе, не решаем его здесь.
+	current, err := h.svc.GetByID(ctx, id)
+	if err != nil {
 		return nil, mapError(err)
 	}
 
-	// Перечитываем: service.UpdateProfile возвращает ту же сущность, что ему
-	// передали, а в неё не входят verified/avatar_url/created_at (репозиторий
-	// их не обновляет и не читает при UPDATE). Без перечитывания ответ врал бы
-	// нулями по этим полям.
-	updated, err := h.svc.GetByID(ctx, id)
+	merged := *current
+	if req.Name != nil {
+		merged.Name = req.GetName()
+	}
+	if req.Handle != nil {
+		merged.Handle = strings.TrimSpace(req.GetHandle())
+	}
+	if req.Bio != nil {
+		merged.Bio = req.GetBio()
+	}
+	if req.City != nil {
+		merged.City = req.GetCity()
+	}
+	if req.Work != nil {
+		merged.Work = req.GetWork()
+	}
+
+	// service.UpdateProfile ставит UpdatedAt=time.Now() и мутирует merged на
+	// месте (тот же указатель), так что updated и &merged — один объект.
+	// Он уже несёт verified/avatar_url/created_at (пришли из current, а
+	// repo.Update их не трогает) и свежий UpdatedAt. Второй поход в БД
+	// (перечитывание после записи) больше не нужен: current, взятый до
+	// записи, уже покрывает все поля, которые UPDATE не меняет.
+	updated, err := h.svc.UpdateProfile(ctx, &merged)
 	if err != nil {
 		return nil, mapError(err)
 	}
@@ -98,6 +122,10 @@ func mapError(err error) error {
 		return status.Error(codes.NotFound, "user not found")
 	case errors.Is(err, domain.ErrHandleTaken):
 		return status.Error(codes.AlreadyExists, "handle already taken")
+	case errors.Is(err, context.Canceled):
+		return status.Error(codes.Canceled, "request canceled")
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Error(codes.DeadlineExceeded, "request deadline exceeded")
 	default:
 		return status.Error(codes.Internal, "internal error")
 	}

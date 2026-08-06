@@ -317,14 +317,19 @@ func (x *GetUserByHandleResponse) GetUser() *User {
 
 // Обновляются только эти поля — verified/avatar_url/created_at меняются
 // другими сценариями (модерация, media), профиль их здесь не трогает.
+//
+// name/handle/bio/city/work — optional: это partial update (PATCH-семантика).
+// Поле, которое клиент не выставил (presence=false), остаётся без изменений
+// на сервере; выставленное явно пустой строкой — реально очищается (кроме
+// handle, который очищать нельзя, см. хендлер).
 type UpdateProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Handle        string                 `protobuf:"bytes,3,opt,name=handle,proto3" json:"handle,omitempty"`
-	Bio           string                 `protobuf:"bytes,4,opt,name=bio,proto3" json:"bio,omitempty"`
-	City          string                 `protobuf:"bytes,5,opt,name=city,proto3" json:"city,omitempty"`
-	Work          string                 `protobuf:"bytes,6,opt,name=work,proto3" json:"work,omitempty"`
+	Name          *string                `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Handle        *string                `protobuf:"bytes,3,opt,name=handle,proto3,oneof" json:"handle,omitempty"`
+	Bio           *string                `protobuf:"bytes,4,opt,name=bio,proto3,oneof" json:"bio,omitempty"`
+	City          *string                `protobuf:"bytes,5,opt,name=city,proto3,oneof" json:"city,omitempty"`
+	Work          *string                `protobuf:"bytes,6,opt,name=work,proto3,oneof" json:"work,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -367,36 +372,36 @@ func (x *UpdateProfileRequest) GetId() string {
 }
 
 func (x *UpdateProfileRequest) GetName() string {
-	if x != nil {
-		return x.Name
+	if x != nil && x.Name != nil {
+		return *x.Name
 	}
 	return ""
 }
 
 func (x *UpdateProfileRequest) GetHandle() string {
-	if x != nil {
-		return x.Handle
+	if x != nil && x.Handle != nil {
+		return *x.Handle
 	}
 	return ""
 }
 
 func (x *UpdateProfileRequest) GetBio() string {
-	if x != nil {
-		return x.Bio
+	if x != nil && x.Bio != nil {
+		return *x.Bio
 	}
 	return ""
 }
 
 func (x *UpdateProfileRequest) GetCity() string {
-	if x != nil {
-		return x.City
+	if x != nil && x.City != nil {
+		return *x.City
 	}
 	return ""
 }
 
 func (x *UpdateProfileRequest) GetWork() string {
-	if x != nil {
-		return x.Work
+	if x != nil && x.Work != nil {
+		return *x.Work
 	}
 	return ""
 }
@@ -473,14 +478,19 @@ const file_ahishka_user_v1_user_proto_rawDesc = "" +
 	"\x16GetUserByHandleRequest\x12\x16\n" +
 	"\x06handle\x18\x01 \x01(\tR\x06handle\"D\n" +
 	"\x17GetUserByHandleResponse\x12)\n" +
-	"\x04user\x18\x01 \x01(\v2\x15.ahishka.user.v1.UserR\x04user\"\x8c\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x15.ahishka.user.v1.UserR\x04user\"\xd3\x01\n" +
 	"\x14UpdateProfileRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
-	"\x06handle\x18\x03 \x01(\tR\x06handle\x12\x10\n" +
-	"\x03bio\x18\x04 \x01(\tR\x03bio\x12\x12\n" +
-	"\x04city\x18\x05 \x01(\tR\x04city\x12\x12\n" +
-	"\x04work\x18\x06 \x01(\tR\x04work\"B\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12\x1b\n" +
+	"\x06handle\x18\x03 \x01(\tH\x01R\x06handle\x88\x01\x01\x12\x15\n" +
+	"\x03bio\x18\x04 \x01(\tH\x02R\x03bio\x88\x01\x01\x12\x17\n" +
+	"\x04city\x18\x05 \x01(\tH\x03R\x04city\x88\x01\x01\x12\x17\n" +
+	"\x04work\x18\x06 \x01(\tH\x04R\x04work\x88\x01\x01B\a\n" +
+	"\x05_nameB\t\n" +
+	"\a_handleB\x06\n" +
+	"\x04_bioB\a\n" +
+	"\x05_cityB\a\n" +
+	"\x05_work\"B\n" +
 	"\x15UpdateProfileResponse\x12)\n" +
 	"\x04user\x18\x01 \x01(\v2\x15.ahishka.user.v1.UserR\x04user2\xa1\x02\n" +
 	"\vUserService\x12L\n" +
@@ -536,6 +546,7 @@ func file_ahishka_user_v1_user_proto_init() {
 		return
 	}
 	file_ahishka_user_v1_user_proto_msgTypes[0].OneofWrappers = []any{}
+	file_ahishka_user_v1_user_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

@@ -46,13 +46,18 @@ message GetUserByHandleResponse {
 
 // Обновляются только эти поля — verified/avatar_url/created_at меняются
 // другими сценариями (модерация, media), профиль их здесь не трогает.
+//
+// name/handle/bio/city/work — optional: это partial update (PATCH-семантика).
+// Поле, которое клиент не выставил (presence=false), остаётся без изменений
+// на сервере; выставленное явно пустой строкой — реально очищается (кроме
+// handle, который очищать нельзя, см. хендлер).
 message UpdateProfileRequest {
   string id = 1;
-  string name = 2;
-  string handle = 3;
-  string bio = 4;
-  string city = 5;
-  string work = 6;
+  optional string name = 2;
+  optional string handle = 3;
+  optional string bio = 4;
+  optional string city = 5;
+  optional string work = 6;
 }
 
 message UpdateProfileResponse {
