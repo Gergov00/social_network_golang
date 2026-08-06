@@ -40,7 +40,10 @@ func (r *PostRepo) Create(ctx context.Context, post *domain.Post) error {
 
 	_, err := r.pool.Exec(ctx, query,
 		post.ID, post.AuthorID, post.Text, post.LikesCount, post.CreatedAt, post.UpdatedAt)
-	return err
+	if err != nil {
+		return mapPostErr(err)
+	}
+	return nil
 }
 
 func (r *PostRepo) GetByID(ctx context.Context, id, viewerID uuid.UUID) (*domain.Post, error) {
@@ -107,7 +110,7 @@ func (r *PostRepo) Like(ctx context.Context, postID, userID uuid.UUID) (*domain.
 	if tag.RowsAffected() == 1 {
 		if _, err := tx.Exec(ctx,
 			`UPDATE posts SET likes_count = likes_count + 1 WHERE id = $1`, postID); err != nil {
-			return nil, err
+			return nil, mapPostErr(err)
 		}
 	}
 
@@ -117,7 +120,7 @@ func (r *PostRepo) Like(ctx context.Context, postID, userID uuid.UUID) (*domain.
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, mapPostErr(err)
 	}
 	return post, nil
 }
@@ -134,13 +137,13 @@ func (r *PostRepo) Unlike(ctx context.Context, postID, userID uuid.UUID) (*domai
 	tag, err := tx.Exec(ctx,
 		`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, postID, userID)
 	if err != nil {
-		return nil, err
+		return nil, mapPostErr(err)
 	}
 
 	if tag.RowsAffected() == 1 {
 		if _, err := tx.Exec(ctx,
 			`UPDATE posts SET likes_count = likes_count - 1 WHERE id = $1`, postID); err != nil {
-			return nil, err
+			return nil, mapPostErr(err)
 		}
 	}
 
@@ -150,7 +153,7 @@ func (r *PostRepo) Unlike(ctx context.Context, postID, userID uuid.UUID) (*domai
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, mapPostErr(err)
 	}
 	return post, nil
 }
@@ -169,6 +172,13 @@ func scanPost(row pgx.Row) (*domain.Post, error) {
 	return &post, nil
 }
 
+// mapPostErr — единая точка перевода pgx-ошибок в доменные на границе
+// репозитория: сырые ошибки БД наружу не отдаются ни с одного мутирующего
+// пути. Сейчас разбирается только один случай — нарушение FK
+// post_likes_post_id_fkey (лайк несуществующего поста) → ErrNotFound.
+// Нарушение CHECK likes_count >= 0 пока провалится в общий return err
+// (нет подходящей доменной ошибки под нарушение инварианта счётчика —
+// заводить её сейчас было бы преждевременно, вне рамок этой задачи).
 func mapPostErr(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation {
