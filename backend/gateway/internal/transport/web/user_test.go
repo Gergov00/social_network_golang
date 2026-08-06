@@ -19,14 +19,19 @@ import (
 )
 
 // fakeUserClient подменяет gRPC-клиента user-service: отдаёт заготовленного
-// пользователя или ошибку и запоминает последний запрос на обновление.
+// пользователя или ошибку и запоминает последний запрос каждого метода, чтобы
+// тесты могли проверить, что хендлер на самом деле отправил, а не только что
+// он вернул клиенту.
 type fakeUserClient struct {
-	user       *userv1.User
-	err        error
-	lastUpdate *userv1.UpdateProfileRequest
+	user            *userv1.User
+	err             error
+	lastGet         *userv1.GetUserRequest
+	lastGetByHandle *userv1.GetUserByHandleRequest
+	lastUpdate      *userv1.UpdateProfileRequest
 }
 
 func (f *fakeUserClient) GetUser(ctx context.Context, in *userv1.GetUserRequest, opts ...grpc.CallOption) (*userv1.GetUserResponse, error) {
+	f.lastGet = in
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -34,6 +39,7 @@ func (f *fakeUserClient) GetUser(ctx context.Context, in *userv1.GetUserRequest,
 }
 
 func (f *fakeUserClient) GetUserByHandle(ctx context.Context, in *userv1.GetUserByHandleRequest, opts ...grpc.CallOption) (*userv1.GetUserByHandleResponse, error) {
+	f.lastGetByHandle = in
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -93,6 +99,15 @@ func TestMeReturnsProfileOfTokenOwner(t *testing.T) {
 	}
 	if got.AvatarURL == nil || *got.AvatarURL != "https://example.com/a.png" {
 		t.Errorf("avatarUrl: got %v", got.AvatarURL)
+	}
+
+	// SECURITY: the fake returns a preset user regardless of what Me actually
+	// sent, so the assertions above would pass even if Me sent the wrong id
+	// (or none at all). Assert on the outgoing gRPC request itself to prove
+	// the id going upstream is genuinely the token owner's.
+	if client.lastGet == nil || client.lastGet.GetId() != id.String() {
+		t.Fatalf("SECURITY: GetUser request went out with id %q, must be token owner %q",
+			client.lastGet.GetId(), id.String())
 	}
 }
 
@@ -210,6 +225,10 @@ func TestUserByHandleReturnsProfile(t *testing.T) {
 	}
 	if got.Handle != user.GetHandle() {
 		t.Errorf("handle: got %q, want %q", got.Handle, user.GetHandle())
+	}
+	if client.lastGetByHandle == nil || client.lastGetByHandle.GetHandle() != user.GetHandle() {
+		t.Errorf("GetUserByHandle request: got handle %q, want %q",
+			client.lastGetByHandle.GetHandle(), user.GetHandle())
 	}
 }
 

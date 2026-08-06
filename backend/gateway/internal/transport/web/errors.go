@@ -12,9 +12,9 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func WriteJSON(w http.ResponseWriter, status int, v any) {
+func WriteJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(code)
 	if v != nil {
 		_ = json.NewEncoder(w).Encode(v)
 	}
@@ -22,11 +22,11 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 
 // WriteError отдаёт единый формат {"error": "..."} с текстом статуса.
 // Тексты фиксированные: подробности ошибки наружу не уходят.
-func WriteError(w http.ResponseWriter, r *http.Request, status int) {
-	if status >= http.StatusInternalServerError {
-		LoggerFrom(r.Context()).Error("request failed", "status", status)
+func WriteError(w http.ResponseWriter, r *http.Request, code int) {
+	if code >= http.StatusInternalServerError {
+		LoggerFrom(r.Context()).Error("request failed", "status", code)
 	}
-	WriteJSON(w, status, errorResponse{Error: http.StatusText(status)})
+	WriteJSON(w, code, errorResponse{Error: http.StatusText(code)})
 }
 
 // WriteGRPCError переводит код ответа gRPC в HTTP-статус.

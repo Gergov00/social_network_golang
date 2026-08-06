@@ -23,6 +23,12 @@ type userDTO struct {
 }
 
 func toUserDTO(user *userv1.User) userDTO {
+	// user == nil is a contract violation (err == nil should always come with
+	// a populated User) but not impossible from a misbehaving upstream — stay
+	// nil-safe throughout rather than panicking on a bad response.
+	if user == nil {
+		return userDTO{}
+	}
 	return userDTO{
 		ID:        user.GetId(),
 		Name:      user.GetName(),
