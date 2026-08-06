@@ -108,6 +108,26 @@ services:
     networks:
       - ahishka
 
+  postgres-post:
+    image: postgres:16-alpine
+    container_name: ahishka-postgres-post
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: post
+      POSTGRES_PASSWORD: post
+      POSTGRES_DB: post_db
+    ports:
+      - "5437:5432"            # host:container — с хоста подключайся на localhost:5437
+    volumes:
+      - pg_post_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U post -d post_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ahishka
+
   # Лёгкий веб-GUI для БД (опционально, удобно смотреть таблицы глазами).
   # Открыть: http://localhost:8081  (System: PostgreSQL, Server: postgres-auth, User/Pass/DB: auth/auth/auth_db)
   adminer:
@@ -142,6 +162,7 @@ services:
 volumes:
   pg_auth_data:                # именованный том — данные переживают `down` (но не `down -v`)
   pg_user_data:
+  pg_post_data:
   nats_data:
 
 networks:

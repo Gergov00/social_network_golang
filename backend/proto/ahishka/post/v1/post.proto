@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package ahishka.post.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "ahishka/pkg/gen/ahishka/post/v1;postv1";
+
+// PostService — посты и лента.
+//
+// ВАЖНО: ни в одном запросе НЕТ поля автора или «кто смотрит». Личность
+// вызывающего приходит исключительно в gRPC-metadata "x-user-id", которую
+// ставит gateway из провалидированного JWT. Поля сообщений отвечают только
+// на вопрос «про что» (id поста, курсор, лимит, текст). Добавить сюда
+// author_id значит дать любому клиенту gateway писать от чужого имени.
+service PostService {
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+  rpc GetPost(GetPostRequest) returns (GetPostResponse);
+  rpc GetFeed(GetFeedRequest) returns (GetFeedResponse);
+  rpc LikePost(LikePostRequest) returns (LikePostResponse);
+  rpc UnlikePost(UnlikePostRequest) returns (UnlikePostResponse);
+}
+
+message Post {
+  string id = 1;
+  // author_id == users.id из user-service. Имени/handle тут нет: их
+  // добирает gateway из user-service (database-per-service).
+  string author_id = 2;
+  string text = 3;
+  int32 likes_count = 4;
+  // liked — относительно вызывающего, а не свойство поста.
+  bool liked = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message CreatePostRequest {
+  string text = 1;
+}
+
+message CreatePostResponse {
+  Post post = 1;
+}
+
+message GetPostRequest {
+  string id = 1;
+}
+
+message GetPostResponse {
+  Post post = 1;
+}
+
+// cursor — непрозрачная строка из next_cursor предыдущей страницы. Пустая
+// строка означает «с начала ленты». limit <= 0 означает «дефолт сервера».
+message GetFeedRequest {
+  string cursor = 1;
+  int32 limit = 2;
+}
+
+// next_cursor пустой, если страниц больше нет.
+message GetFeedResponse {
+  repeated Post posts = 1;
+  string next_cursor = 2;
+}
+
+message LikePostRequest {
+  string post_id = 1;
+}
+
+// Возвращаем пост целиком: клиент делает оптимистичный апдейт и должен
+// уметь сверить его с настоящим счётчиком одним ответом.
+message LikePostResponse {
+  Post post = 1;
+}
+
+message UnlikePostRequest {
+  string post_id = 1;
+}
+
+message UnlikePostResponse {
+  Post post = 1;
+}

@@ -4,5 +4,6 @@ use (
 	./auth-service
 	./gateway
 	./pkg
+	./post-service
 	./user-service
 )
