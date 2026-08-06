@@ -133,6 +133,7 @@ func testPost(author uuid.UUID) *domain.Post {
 func TestContractHasNoCallerFields(t *testing.T) {
 	messages := []proto.Message{
 		&postv1.CreatePostRequest{},
+		&postv1.GetPostRequest{},
 		&postv1.GetFeedRequest{},
 		&postv1.LikePostRequest{},
 		&postv1.UnlikePostRequest{},
@@ -145,7 +146,11 @@ func TestContractHasNoCallerFields(t *testing.T) {
 		fields := desc.Fields()
 
 		for i := 0; i < fields.Len(); i++ {
-			name := string(fields.Get(i).Name())
+			// Дескрипторы допускают и camelCase-имя поля (protoc принимает
+			// "AuthorId" не хуже "author_id"), а strings.Contains
+			// регистрозависим — без ToLower застрахованное имя в другом
+			// регистре молча проскочило бы мимо стража.
+			name := strings.ToLower(string(fields.Get(i).Name()))
 			for _, bad := range forbidden {
 				if strings.Contains(name, bad) {
 					t.Errorf("%s содержит поле %q: личность вызывающего должна приходить только в metadata %q",
