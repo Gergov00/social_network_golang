@@ -63,6 +63,10 @@ func TestUserIDFromTokenRejectsForeignSignature(t *testing.T) {
 }
 
 // Токен с alg=none — классическая попытка обойти проверку подписи.
+// Это end-to-end проверка результата, а не гарантия того, что именно наш
+// keyFunc-чек тут срабатывает: golang-jwt сам отвергает none.Verify без
+// unsafeNoneMagicConstant, так что этот тест прошёл бы и без явной проверки
+// алгоритма. За саму проверку отвечают тесты TestKeyFunc*.
 func TestUserIDFromTokenRejectsNoneAlgorithm(t *testing.T) {
 	claims := jwt.RegisteredClaims{
 		Subject:   uuid.New().String(),
@@ -93,5 +97,65 @@ func TestUserIDFromTokenRejectsGarbage(t *testing.T) {
 	_, err := NewVerifier(testSecret).UserIDFromToken("не токен вовсе")
 	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken for garbage, got %v", err)
+	}
+}
+
+// Тесты ниже проверяют keyFunc напрямую, минуя jwt.ParseWithClaims — они
+// гарантируют, что именно НАША проверка алгоритма отказывает alg=none и
+// asymmetric-подменам, а не случайное поведение библиотеки. Если кто-то
+// удалит проверку `token.Method.(*jwt.SigningMethodHMAC)` внутри keyFunc,
+// эти тесты должны немедленно упасть — в отличие от
+// TestUserIDFromTokenRejectsNoneAlgorithm, которая может продолжить
+// проходить благодаря защите самой библиотеки.
+
+func TestKeyFuncAcceptsHMAC(t *testing.T) {
+	v := NewVerifier(testSecret)
+	token := &jwt.Token{
+		Method: jwt.SigningMethodHS256,
+		Header: map[string]interface{}{"alg": "HS256"},
+	}
+
+	key, err := v.keyFunc(token)
+	if err != nil {
+		t.Fatalf("keyFunc: %v", err)
+	}
+	got, ok := key.([]byte)
+	if !ok {
+		t.Fatalf("key type: got %T, want []byte", key)
+	}
+	if string(got) != testSecret {
+		t.Errorf("key: got %q, want %q", got, testSecret)
+	}
+}
+
+func TestKeyFuncRejectsNoneAlgorithm(t *testing.T) {
+	v := NewVerifier(testSecret)
+	token := &jwt.Token{
+		Method: jwt.SigningMethodNone,
+		Header: map[string]interface{}{"alg": "none"},
+	}
+
+	key, err := v.keyFunc(token)
+	if err == nil {
+		t.Fatal("expected error for alg=none, got nil")
+	}
+	if key != nil {
+		t.Errorf("expected nil key for alg=none, got %v", key)
+	}
+}
+
+func TestKeyFuncRejectsAsymmetricAlgorithm(t *testing.T) {
+	v := NewVerifier(testSecret)
+	token := &jwt.Token{
+		Method: jwt.SigningMethodRS256,
+		Header: map[string]interface{}{"alg": "RS256"},
+	}
+
+	key, err := v.keyFunc(token)
+	if err == nil {
+		t.Fatal("expected error for alg=RS256, got nil")
+	}
+	if key != nil {
+		t.Errorf("expected nil key for alg=RS256, got %v", key)
 	}
 }

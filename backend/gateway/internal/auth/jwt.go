@@ -24,18 +24,26 @@ func NewVerifier(secret string) *Verifier {
 	}
 }
 
+// keyFunc отдаёт ключ для проверки подписи jwt.ParseWithClaims. Проверка
+// алгоритма — defense-in-depth: сейчас у нас единственный статический
+// HMAC-секрет, и сама библиотека уже отказывает alg=none/RSA-ключам, потому
+// что типы ключей не совпадают (Verify для none требует особую внутреннюю
+// константу, для RSA — *rsa.PublicKey, а мы всегда возвращаем []byte). Но
+// как только keyFunc научится резолвить ключ по алгоритму (например, при
+// переходе на RS256+JWKS из роадмапа), эта случайная защита библиотеки
+// исчезнет — и вот тогда явная проверка ниже станет единственным барьером.
+// Оставляем её сейчас, чтобы не потерять при будущем рефакторинге.
+func (v *Verifier) keyFunc(token *jwt.Token) (interface{}, error) {
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	}
+	return v.secret, nil
+}
+
 // UserIDFromToken проверяет подпись и срок локально, без похода в auth-service,
 // и возвращает идентификатор пользователя из sub.
 func (v *Verifier) UserIDFromToken(raw string) (uuid.UUID, error) {
-	token, err := jwt.ParseWithClaims(raw, &jwt.RegisteredClaims{},
-		func(token *jwt.Token) (interface{}, error) {
-			// Без этой проверки токен с alg=none или с подменённым на
-			// асимметричный алгоритмом прошёл бы валидацию.
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return v.secret, nil
-		})
+	token, err := jwt.ParseWithClaims(raw, &jwt.RegisteredClaims{}, v.keyFunc)
 	if err != nil || !token.Valid {
 		return uuid.Nil, ErrInvalidToken
 	}
