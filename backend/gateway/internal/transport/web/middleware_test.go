@@ -1,6 +1,8 @@
 package web
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -92,6 +94,23 @@ func TestRequireAuthBlocksForeignSignature(t *testing.T) {
 	}
 	if p.called {
 		t.Error("SECURITY: protected handler reached with a foreign-signed token")
+	}
+}
+
+// TestLoggingMiddlewareSetsRequestIDHeader guards Finding 3: the request id
+// minted for the access log must also reach the client as X-Request-Id, so
+// a user reporting "I got a 500" can be correlated to a log line.
+func TestLoggingMiddlewareSetsRequestIDHeader(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	handler := LoggingMiddleware(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	if got := rec.Header().Get("X-Request-Id"); got == "" {
+		t.Error("X-Request-Id header not set on response")
 	}
 }
 

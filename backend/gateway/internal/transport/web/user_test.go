@@ -205,6 +205,32 @@ func TestUpdateMeRejectsMalformedJSON(t *testing.T) {
 	}
 }
 
+// TestUpdateMeRejectsOversizedBody guards the maxBodyBytes limit: a body
+// past the cap must be rejected with 400, not read into memory without
+// bound. The oversized body is built as a huge value for a real field
+// (city) rather than padding/garbage, so this fails for the right reason
+// (MaxBytesReader tripping mid-decode) rather than merely producing
+// unrelated invalid JSON.
+func TestUpdateMeRejectsOversizedBody(t *testing.T) {
+	id := uuid.New()
+	client := &fakeUserClient{user: testUser(id)}
+	rec := httptest.NewRecorder()
+
+	oversized := `{"city": "` + strings.Repeat("a", maxBodyBytes+1) + `"}`
+	if len(oversized) <= maxBodyBytes {
+		t.Fatalf("test body (%d bytes) does not actually exceed maxBodyBytes (%d)", len(oversized), maxBodyBytes)
+	}
+
+	NewUserHandler(client).UpdateMe(rec, requestWithUser(http.MethodPatch, "/me", oversized, id))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", rec.Code)
+	}
+	if client.lastUpdate != nil {
+		t.Error("SECURITY/RESOURCE: oversized body must be rejected before reaching the upstream call")
+	}
+}
+
 func TestUserByHandleReturnsProfile(t *testing.T) {
 	id := uuid.New()
 	user := testUser(id)

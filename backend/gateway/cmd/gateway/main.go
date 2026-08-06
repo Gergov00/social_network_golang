@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	userv1 "ahishka/pkg/gen/ahishka/user/v1"
 	"gateway/internal/auth"
@@ -84,8 +85,12 @@ func NewAuthProxy(cfg *config.Config) (*httputil.ReverseProxy, error) {
 
 func Run(lc fx.Lifecycle, router http.Handler, cfg *config.Config, logger *slog.Logger, shutdowner fx.Shutdowner) {
 	srv := &http.Server{
-		Addr:    ":" + cfg.HTTPPort,
-		Handler: router,
+		Addr:              ":" + cfg.HTTPPort,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	lc.Append(fx.Hook{

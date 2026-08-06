@@ -137,22 +137,40 @@ func TestHealthRouteReturnsOK(t *testing.T) {
 	}
 }
 
-// TestMeRouteWithoutAuthorizationIsUnauthorized is a cheap route-table check:
-// /me must actually be wired behind RequireAuth. If a future edit dropped
-// the requireAuth wrap (or the route itself), this would be the only thing
-// to notice.
-func TestMeRouteWithoutAuthorizationIsUnauthorized(t *testing.T) {
-	router := NewRouter(
-		NewUserHandler(panickingUserClient{}),
-		testAuthProxy(t),
-		auth.NewVerifier(routerTestSecret),
-		slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
-	)
+// TestProtectedRoutesWithoutAuthorizationAreUnauthorized is a cheap
+// route-table check: every route that is supposed to sit behind RequireAuth
+// must actually be wired that way. RequireAuth is applied per-route in
+// router.go (not as a group wrap), so a future edit dropping the
+// requireAuth(...) wrap from any one of these lines would compile and pass
+// every other test while silently exposing that route unauthenticated. This
+// table covers all three protected routes individually so no single instance
+// of that regression slips through.
+func TestProtectedRoutesWithoutAuthorizationAreUnauthorized(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"GET /me", http.MethodGet, "/me"},
+		{"PATCH /me", http.MethodPatch, "/me"},
+		{"GET /users/{handle}", http.MethodGet, "/users/someone"},
+	}
 
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/me", nil))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := NewRouter(
+				NewUserHandler(panickingUserClient{}),
+				testAuthProxy(t),
+				auth.NewVerifier(routerTestSecret),
+				slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
+			)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status: got %d, want 401", rec.Code)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("status: got %d, want 401", rec.Code)
+			}
+		})
 	}
 }

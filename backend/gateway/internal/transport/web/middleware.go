@@ -35,7 +35,10 @@ func LoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-			reqLogger := logger.With("request_id", uuid.NewString())
+			requestID := uuid.NewString()
+			w.Header().Set("X-Request-Id", requestID)
+
+			reqLogger := logger.With("request_id", requestID)
 			ctx := context.WithValue(r.Context(), loggerKey, reqLogger)
 
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
