@@ -67,6 +67,21 @@ services:
     networks:
       - ahishka
 
+  post-service:
+    build:
+      context: ./backend
+      dockerfile: post-service/Dockerfile
+    container_name: ahishka-post
+    environment:
+      DB_URL: postgres://post:post@postgres-post:5432/post_db?sslmode=disable
+      GRPC_PORT: 50052
+      LOG_LEVEL: info
+    depends_on:
+      postgres-post:
+        condition: service_healthy
+    networks:
+      - ahishka
+
   postgres-auth:
     image: postgres:16-alpine
     container_name: ahishka-postgres-auth
