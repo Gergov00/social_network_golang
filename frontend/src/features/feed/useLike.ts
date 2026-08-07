@@ -25,8 +25,14 @@ export function useLike() {
 
     // Оптимистично: счётчик двигается сразу, до ответа сервера.
     onMutate: async ({ id, liked }) => {
+      // Обе кэш-записи патчатся ниже — обе и отменяем, иначе фоновый рефетч
+      // страницы поста может перезаписать оптимистичное значение прямо
+      // посреди мутации.
       await queryClient.cancelQueries({ queryKey: FEED_KEY });
-      const snapshot = queryClient.getQueryData<FeedCache>(FEED_KEY);
+      await queryClient.cancelQueries({ queryKey: ['post', id] });
+
+      const feedSnapshot = queryClient.getQueryData<FeedCache>(FEED_KEY);
+      const postSnapshot = queryClient.getQueryData<PostDTO>(['post', id]);
 
       queryClient.setQueryData<FeedCache>(FEED_KEY, (old) => {
         const current = old?.pages.flatMap((p) => p.posts).find((p) => p.id === id);
@@ -41,13 +47,16 @@ export function useLike() {
         old ? { ...old, liked: !liked, likes: old.likes + (liked ? -1 : 1) } : old,
       );
 
-      return { snapshot };
+      return { feedSnapshot, postSnapshot };
     },
 
     // Откат: без него неудачный лайк оставит на экране число, которого нет
     // в базе, и пользователь узнает об этом только после перезагрузки.
-    onError: (_err, _vars, context) => {
-      if (context?.snapshot) queryClient.setQueryData(FEED_KEY, context.snapshot);
+    // Откатываем обе кэш-записи — страницу поста тоже, не только ленту,
+    // иначе там залипнет оптимистичное значение навсегда.
+    onError: (_err, { id }, context) => {
+      if (context?.feedSnapshot) queryClient.setQueryData(FEED_KEY, context.feedSnapshot);
+      if (context?.postSnapshot) queryClient.setQueryData(['post', id], context.postSnapshot);
     },
 
     // Сервер вернул пост целиком — берём его числа как истину в последней

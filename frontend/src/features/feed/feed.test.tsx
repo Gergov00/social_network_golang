@@ -2,9 +2,12 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { expect, test } from 'vitest';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router-dom';
 import { server } from '../../test/server';
-import { Providers } from '../../app/providers';
+import { Providers, createQueryClient } from '../../app/providers';
 import { AppRouter } from '../../app/router';
+import { AuthProvider } from '../../auth/AuthContext';
 import type { PostDTO, UserDTO } from '../../api/types';
 
 const author: UserDTO = {
@@ -38,6 +41,24 @@ function renderFeed() {
       <AppRouter />
     </Providers>,
   );
+}
+
+// Как renderFeed(), но с явным QueryClient — чтобы тест мог заглянуть в кэш
+// напрямую через client.getQueryData/setQueryData, минуя реальный экран
+// поста (которого пока нет — его добавит следующая задача).
+function renderFeedWithClient() {
+  window.history.pushState({}, '', '/');
+  const client = createQueryClient();
+  render(
+    <QueryClientProvider client={client}>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>,
+  );
+  return client;
 }
 
 test('пустая лента показывает пустое состояние, а не пустой экран', async () => {
@@ -180,4 +201,28 @@ test('нереализованные действия видны, но неак�
   expect(screen.getByRole('button', { name: /комментировать/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /репост/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /закладк/i })).toBeDisabled();
+});
+
+test('откат лайка при ошибке восстанавливает и ленту, и кэш страницы поста', async () => {
+  // Страницы поста ещё нет (её добавит следующая задача), но её кэш —
+  // ['post', id] — уже патчится оптимистично в useLike.onMutate. Если
+  // onError откатывает только ленту, эта запись останется оптимистичной
+  // навсегда — ровно та регрессия, которую эта задача обязана перекрыть.
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post({ likes: 3, liked: false })], nextCursor: '' })),
+    http.post('/posts/p1/like', () => HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 })),
+  );
+
+  const client = renderFeedWithClient();
+  // Кэш страницы поста уже существует к моменту лайка (например, пользователь
+  // недавно её открывал) — так onMutate будет что патчить, а не no-op на
+  // отсутствующей записи.
+  client.setQueryData<PostDTO>(['post', 'p1'], post({ likes: 3, liked: false }));
+
+  const likeButton = await screen.findByRole('button', { name: /нравится/i });
+  await userEvent.click(likeButton);
+
+  await waitFor(() => expect(likeButton).toHaveTextContent('3'));
+  expect(client.getQueryData<PostDTO>(['post', 'p1'])).toMatchObject({ likes: 3, liked: false });
 });

@@ -10,21 +10,31 @@ export function FeedPage() {
   const feed = useFeed();
   const sentinel = useRef<HTMLDivElement | null>(null);
 
+  // Вынесено из `feed` в отдельные переменные нарочно: TanStack Query
+  // возвращает новый объект результата почти на любое изменение состояния
+  // запроса (включая фоновые рефетчи). Если положить в зависимости эффекта
+  // весь `feed`, наблюдатель будет пересоздаваться гораздо чаще, чем реально
+  // меняются эти три поля — а IntersectionObserver репортит пересечение сразу
+  // при observe(), так что маячок в зоне видимости мог бы ретриггерить
+  // догрузку без реального скролла. fetchNextPage у TanStack стабильна по
+  // ссылке между рендерами.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = feed;
+
   // Бесконечный скролл: догружаем, когда «маячок» под лентой попал в вид.
   // В jsdom IntersectionObserver заглушён и не срабатывает — поэтому ниже
   // остаётся кнопка «Ещё», через неё пагинация и тестируется.
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !feed.hasNextPage) return;
+    if (!node || !hasNextPage) return;
 
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && !feed.isFetchingNextPage) {
-        void feed.fetchNextPage();
+      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
+        void fetchNextPage();
       }
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [feed.hasNextPage, feed.isFetchingNextPage, feed.fetchNextPage, feed]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const posts = feed.data?.pages.flatMap((page) => page.posts) ?? [];
 
