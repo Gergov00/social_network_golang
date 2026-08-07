@@ -1,0 +1,27 @@
+/* Единственное осознанное расхождение с перенесённым app.css.
+   Там --accent индиговый (#6a5cf0) с пометкой «base set by tweaks»,
+   а фирменным README называет teal #13C4BD. Держим фирменный — и держим
+   его ЗДЕСЬ, чтобы app.css оставался дословной копией макета.
+   Все оттенки (-600/-700/-soft/-soft-2) выводятся из него через color-mix
+   в app.css, поэтому переопределять их отдельно не нужно. */
+:root {
+  --accent: #13c4bd;
+}
+
+/* Ниже — то, чего в макете нет вовсе: прототип не показывал состояний
+   загрузки и ошибки (в README это записано как пробел — «нужны состояния
+   загрузки/ошибки/пустого списка для каждого запроса»). Держим их здесь,
+   отдельно от перенесённого app.css. */
+.spinner {
+  width: 22px; height: 22px; margin: 28px auto; border-radius: 50%;
+  border: 2.5px solid var(--surface-3); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+.errorbox {
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+  border-radius: var(--radius-sm); padding: 16px; text-align: center;
+}

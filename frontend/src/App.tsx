@@ -2,7 +2,9 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
-import './App.css'
+// App.css удалён Task 2 (дизайн-система переехала в styles/app.css +
+// tokens.css, подключаемые в main.tsx). Этот файл — ещё шаблон Vite,
+// его переделает Task 4 (маршруты/экран входа); дальше он не стилизован.
 
 function App() {
   const [count, setCount] = useState(0)
