@@ -1,0 +1,183 @@
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { expect, test } from 'vitest';
+import { server } from '../../test/server';
+import { Providers } from '../../app/providers';
+import { AppRouter } from '../../app/router';
+import type { PostDTO, UserDTO } from '../../api/types';
+
+const author: UserDTO = {
+  id: 'author-1', name: 'Аня Соколова', handle: 'anya', bio: '', city: '', work: '',
+  verified: true, avatarUrl: null,
+  createdAt: '2026-08-07T10:00:00Z', updatedAt: '2026-08-07T10:00:00Z',
+};
+
+const me: UserDTO = { ...author, id: 'me-1', name: '', handle: 'u_me', verified: false };
+
+function post(over: Partial<PostDTO> = {}): PostDTO {
+  return {
+    id: 'p1', authorId: author.id, author, text: 'первый пост',
+    likes: 3, liked: false,
+    createdAt: '2026-08-07T12:00:00Z', updatedAt: '2026-08-07T12:00:00Z',
+    ...over,
+  };
+}
+
+function authed() {
+  return [
+    http.post('/auth/refresh', () => HttpResponse.json({ access_token: 'tkn' })),
+    http.get('/me', () => HttpResponse.json(me)),
+  ];
+}
+
+function renderFeed() {
+  window.history.pushState({}, '', '/');
+  return render(
+    <Providers>
+      <AppRouter />
+    </Providers>,
+  );
+}
+
+test('пустая лента показывает пустое состояние, а не пустой экран', async () => {
+  server.use(...authed(), http.get('/feed', () => HttpResponse.json({ posts: [], nextCursor: '' })));
+
+  renderFeed();
+
+  expect(await screen.findByText(/пока пусто|записей нет/i)).toBeInTheDocument();
+});
+
+test('рисует пост с автором', async () => {
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post()], nextCursor: '' })),
+  );
+
+  renderFeed();
+
+  expect(await screen.findByText('первый пост')).toBeInTheDocument();
+  expect(screen.getByText('Аня Соколова')).toBeInTheDocument();
+});
+
+test('пост без автора отрисован, а не пропущен', async () => {
+  // gateway отдаёт author: null, когда профиль не найден или user-service
+  // не ответил. Это деградация, а не ошибка: прятать такой пост нельзя.
+  server.use(
+    ...authed(),
+    http.get('/feed', () =>
+      HttpResponse.json({ posts: [post({ author: null, text: 'осиротевший' })], nextCursor: '' }),
+    ),
+  );
+
+  renderFeed();
+
+  expect(await screen.findByText('осиротевший')).toBeInTheDocument();
+});
+
+test('лайк оптимистичен и откатывается при ошибке сервера', async () => {
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post({ likes: 3, liked: false })], nextCursor: '' })),
+    http.post('/posts/p1/like', () => HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 })),
+  );
+
+  renderFeed();
+  const likeButton = await screen.findByRole('button', { name: /нравится/i });
+  expect(likeButton).toHaveTextContent('3');
+
+  await userEvent.click(likeButton);
+
+  // Сначала оптимистично 4, затем откат к 3 после ответа сервера.
+  await waitFor(() => expect(likeButton).toHaveTextContent('3'));
+});
+
+test('успешный лайк берёт счётчик из ответа сервера', async () => {
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post({ likes: 3, liked: false })], nextCursor: '' })),
+    // Сервер знает правду: у него 41, а не 4 — клиент обязан взять его число.
+    http.post('/posts/p1/like', () => HttpResponse.json(post({ likes: 41, liked: true }))),
+  );
+
+  renderFeed();
+  const likeButton = await screen.findByRole('button', { name: /нравится/i });
+
+  await userEvent.click(likeButton);
+
+  await waitFor(() => expect(likeButton).toHaveTextContent('41'));
+});
+
+test('при nextCursor="" догрузка не запускается', async () => {
+  // Пустая строка означает конец ленты. Если её вернуть как pageParam,
+  // TanStack Query решит, что страница есть, и будет грузить бесконечно.
+  let feedCalls = 0;
+  server.use(
+    ...authed(),
+    http.get('/feed', () => {
+      feedCalls += 1;
+      return HttpResponse.json({ posts: [post()], nextCursor: '' });
+    }),
+  );
+
+  renderFeed();
+  await screen.findByText('первый пост');
+
+  await new Promise((r) => setTimeout(r, 50));
+  expect(feedCalls).toBe(1);
+  expect(screen.queryByRole('button', { name: /ещё|загрузить/i })).not.toBeInTheDocument();
+});
+
+test('вторая страница запрашивается с курсором первой', async () => {
+  const seen: (string | null)[] = [];
+  server.use(
+    ...authed(),
+    http.get('/feed', ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor');
+      seen.push(cursor);
+      return cursor
+        ? HttpResponse.json({ posts: [post({ id: 'p2', text: 'второй пост' })], nextCursor: '' })
+        : HttpResponse.json({ posts: [post()], nextCursor: 'CURSOR-1' });
+    }),
+  );
+
+  renderFeed();
+  await screen.findByText('первый пост');
+
+  await userEvent.click(await screen.findByRole('button', { name: /ещё/i }));
+
+  expect(await screen.findByText('второй пост')).toBeInTheDocument();
+  expect(seen).toEqual([null, 'CURSOR-1']);
+});
+
+test('опубликованный пост встаёт в начало ленты', async () => {
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post()], nextCursor: '' })),
+    http.post('/posts', () =>
+      HttpResponse.json(post({ id: 'p-new', text: 'свежая мысль' }), { status: 201 }),
+    ),
+  );
+
+  renderFeed();
+  await userEvent.click(await screen.findByPlaceholderText(/поделитесь мыслью/i));
+  await userEvent.type(screen.getByRole('textbox'), 'свежая мысль');
+  await userEvent.click(screen.getByRole('button', { name: /опубликовать/i }));
+
+  const posts = await screen.findAllByRole('article');
+  expect(within(posts[0]).getByText('свежая мысль')).toBeInTheDocument();
+});
+
+test('нереализованные действия видны, но неактивны', async () => {
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post()], nextCursor: '' })),
+  );
+
+  renderFeed();
+  await screen.findByText('первый пост');
+
+  expect(screen.getByRole('button', { name: /комментировать/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /репост/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /закладк/i })).toBeDisabled();
+});
