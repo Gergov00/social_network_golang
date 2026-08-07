@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +88,7 @@ func TestRouterRecoveredPanicIsLoggedWithCorrectStatus(t *testing.T) {
 
 	router := NewRouter(
 		NewUserHandler(panickingUserClient{}),
+		NewPostHandler(&fakePostClient{}, &batchUserClient{}),
 		testAuthProxy(t),
 		auth.NewVerifier(routerTestSecret),
 		logger,
@@ -125,6 +127,7 @@ func TestRouterRecoveredPanicIsLoggedWithCorrectStatus(t *testing.T) {
 func TestHealthRouteReturnsOK(t *testing.T) {
 	router := NewRouter(
 		NewUserHandler(panickingUserClient{}),
+		NewPostHandler(&fakePostClient{}, &batchUserClient{}),
 		testAuthProxy(t),
 		auth.NewVerifier(routerTestSecret),
 		slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
@@ -164,6 +167,7 @@ func TestProtectedRoutesWithoutAuthorizationAreUnauthorized(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			router := NewRouter(
 				NewUserHandler(panickingUserClient{}),
+				NewPostHandler(&fakePostClient{}, &batchUserClient{}),
 				testAuthProxy(t),
 				auth.NewVerifier(routerTestSecret),
 				slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
@@ -174,6 +178,55 @@ func TestProtectedRoutesWithoutAuthorizationAreUnauthorized(t *testing.T) {
 
 			if rec.Code != http.StatusUnauthorized {
 				t.Errorf("status: got %d, want 401", rec.Code)
+			}
+		})
+	}
+}
+
+// TestPostRoutesRequireAuth покрывает ВСЕ пять маршрутов постов, а не один
+// «представительный»: requireAuth навешивается на каждый маршрут отдельно,
+// поэтому пропавшая обёртка на одной строке компилируется и проходит все
+// остальные тесты, молча открывая этот маршрут наружу.
+//
+// Вторая половина каждого подтеста (с валидным токеном) стережёт сам факт
+// регистрации маршрута: 404 значит, что строки в роутере нет.
+func TestPostRoutesRequireAuth(t *testing.T) {
+	id := uuid.New().String()
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/feed"},
+		{http.MethodPost, "/posts"},
+		{http.MethodGet, "/posts/" + id},
+		{http.MethodPost, "/posts/" + id + "/like"},
+		{http.MethodDelete, "/posts/" + id + "/like"},
+	}
+
+	router := NewRouter(
+		NewUserHandler(&fakeUserClient{}),
+		NewPostHandler(&fakePostClient{}, &batchUserClient{}),
+		testAuthProxy(t),
+		auth.NewVerifier(routerTestSecret),
+		slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
+	)
+
+	for _, route := range routes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			// без токена
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, httptest.NewRequest(route.method, route.path, nil))
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("без токена status = %d, want 401", rec.Code)
+			}
+
+			// с токеном маршрут обязан существовать (не 401 и не 404)
+			rec = httptest.NewRecorder()
+			req := httptest.NewRequest(route.method, route.path, strings.NewReader(`{"text":"пост"}`))
+			req.Header.Set("Authorization", "Bearer "+routerToken(t, uuid.New().String()))
+			router.ServeHTTP(rec, req)
+			if rec.Code == http.StatusUnauthorized || rec.Code == http.StatusNotFound {
+				t.Errorf("с токеном status = %d — маршрут не зарегистрирован", rec.Code)
 			}
 		})
 	}

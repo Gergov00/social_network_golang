@@ -10,6 +10,7 @@ type Config struct {
 	JWTSecret       string
 	AuthServiceURL  string
 	UserServiceAddr string
+	PostServiceAddr string
 	LogLevel        string
 }
 
@@ -19,6 +20,7 @@ func Load() (*Config, error) {
 		JWTSecret:       os.Getenv("JWT_SECRET"),
 		AuthServiceURL:  getEnv("AUTH_SERVICE_URL", "http://localhost:10001"),
 		UserServiceAddr: getEnv("USER_SERVICE_ADDR", "localhost:50051"),
+		PostServiceAddr: getEnv("POST_SERVICE_ADDR", "localhost:50052"),
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
 	}
 

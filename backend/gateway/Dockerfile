@@ -6,9 +6,10 @@ WORKDIR /src
 # не разрешит ahishka/pkg.
 COPY go.work go.work.sum ./
 COPY auth-service/go.mod auth-service/go.sum ./auth-service/
-COPY pkg/go.mod pkg/go.sum ./pkg/
-COPY user-service/go.mod user-service/go.sum ./user-service/
 COPY gateway/go.mod gateway/go.sum ./gateway/
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY post-service/go.mod post-service/go.sum ./post-service/
+COPY user-service/go.mod user-service/go.sum ./user-service/
 RUN go mod download
 
 COPY pkg/ ./pkg/

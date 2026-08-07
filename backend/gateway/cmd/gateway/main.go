@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	postv1 "ahishka/pkg/gen/ahishka/post/v1"
 	userv1 "ahishka/pkg/gen/ahishka/user/v1"
 	"gateway/internal/auth"
 	"gateway/internal/config"
@@ -28,10 +29,11 @@ func main() {
 			config.Load,
 			NewLogger,
 			NewVerifier,
-			NewUserConn,
 			NewUserClient,
+			NewPostClient,
 			NewAuthProxy,
 			web.NewUserHandler,
+			web.NewPostHandler,
 			web.NewRouter,
 		),
 		fx.WithLogger(func(logger *slog.Logger) fxevent.Logger {
@@ -56,27 +58,42 @@ func NewVerifier(cfg *config.Config) *auth.Verifier {
 	return auth.NewVerifier(cfg.JWTSecret)
 }
 
-// NewUserConn держит соединение с user-service. grpc.NewClient не ходит в сеть
-// при создании — соединение поднимается лениво, поэтому недоступный
-// user-service не роняет старт gateway (в отличие от NATS у user-service).
-func NewUserConn(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (*grpc.ClientConn, error) {
-	conn, err := grpc.NewClient(cfg.UserServiceAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+// dial поднимает соединение с сервисом данных. Это НЕ fx-провайдер:
+// *grpc.ClientConn у нас теперь два (user и post), а два провайдера одного
+// типа fx собрать не может. Соединение живёт внутри конструктора клиента.
+//
+// grpc.NewClient не ходит в сеть при создании — соединение поднимается
+// лениво, поэтому недоступный сервис не роняет старт gateway (в отличие от
+// NATS у user-service).
+func dial(lc fx.Lifecycle, addr, name string, logger *slog.Logger) (*grpc.ClientConn, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			logger.Info("closing user-service connection")
+			logger.Info("closing service connection", "service", name)
 			return conn.Close()
 		},
 	})
 	return conn, nil
 }
 
-func NewUserClient(conn *grpc.ClientConn) userv1.UserServiceClient {
-	return userv1.NewUserServiceClient(conn)
+func NewUserClient(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (userv1.UserServiceClient, error) {
+	conn, err := dial(lc, cfg.UserServiceAddr, "user-service", logger)
+	if err != nil {
+		return nil, err
+	}
+	return userv1.NewUserServiceClient(conn), nil
+}
+
+func NewPostClient(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (postv1.PostServiceClient, error) {
+	conn, err := dial(lc, cfg.PostServiceAddr, "post-service", logger)
+	if err != nil {
+		return nil, err
+	}
+	return postv1.NewPostServiceClient(conn), nil
 }
 
 func NewAuthProxy(cfg *config.Config) (*httputil.ReverseProxy, error) {

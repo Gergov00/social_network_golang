@@ -41,6 +41,7 @@ func TestLoadAppliesDocumentedDefaults(t *testing.T) {
 	t.Setenv("HTTP_PORT", "")
 	t.Setenv("AUTH_SERVICE_URL", "")
 	t.Setenv("USER_SERVICE_ADDR", "")
+	t.Setenv("POST_SERVICE_ADDR", "")
 	t.Setenv("LOG_LEVEL", "")
 
 	cfg, err := Load()
@@ -53,6 +54,7 @@ func TestLoadAppliesDocumentedDefaults(t *testing.T) {
 		JWTSecret:       "some-secret",
 		AuthServiceURL:  "http://localhost:10001",
 		UserServiceAddr: "localhost:50051",
+		PostServiceAddr: "localhost:50052",
 		LogLevel:        "info",
 	}
 	if *cfg != want {
