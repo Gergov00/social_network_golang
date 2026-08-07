@@ -1,32 +1,40 @@
-# React + TypeScript + Vite
+# ahishka — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+SPA на Vite + React + TypeScript поверх gateway.
 
-Currently, two official plugins are available:
+## Запуск
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Сначала бэкенд (из корня репозитория):
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+docker compose up -d
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Затем фронт:
+
+```
+npm install
+npm run dev
+```
+
+Открыть http://localhost:5173
+
+## Как устроены запросы
+
+Dev-сервер проксирует **реальные пути** (`/auth`, `/me`, `/users`, `/feed`, `/posts`)
+на `http://localhost:8080`. Префикс `/api` не используется намеренно: refresh-cookie
+выставлена с `Path=/auth` и на `/api/auth/refresh` браузером не отправится.
+
+Поскольку запросы идут с того же origin, CORS не нужен — и в gateway его нет.
+
+Access-токен хранится только в памяти. При загрузке страницы приложение делает
+`POST /auth/refresh` по httpOnly-cookie. Обновление токена — **single-flight**:
+параллельные refresh вызвали бы на бэкенде reuse-detection и отзыв всей семьи токенов.
+
+## Тесты
+
+```
+npm test
+```
+
+Vitest + Testing Library + MSW. Покрыто поведение, а не вёрстка.
