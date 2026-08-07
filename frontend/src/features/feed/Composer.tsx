@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { postsApi } from '../../api/posts';
 import { useAuth } from '../../auth/AuthContext';
 import { Avatar } from '../../ui/Avatar';
+import { ErrorBox } from '../../ui/ErrorBox';
 import { Icon } from '../../ui/Icons';
 import { usePrependPost } from './useFeed';
 
@@ -60,6 +61,13 @@ export function Composer() {
         )}
       </div>
 
+      {publish.isError && (
+        <ErrorBox
+          message="Не удалось опубликовать запись. Попробуйте ещё раз."
+          onRetry={submit}
+        />
+      )}
+
       {open && (
         <div className="composer-actions">
           {/* Медиа и опросы бэкенд не поддерживает — кнопки неактивны. */}
@@ -68,7 +76,11 @@ export function Composer() {
           <button className="tool" type="button" disabled title="Скоро"><Icon name="poll" /></button>
           <span className="grow" />
           {tooLong && <span className="hint">Длиннее {MAX_RUNES} символов</span>}
-          <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setText(''); setOpen(false); }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            onClick={() => { setText(''); setOpen(false); publish.reset(); }}
+          >
             Отмена
           </button>
           <button className="btn btn-primary btn-sm" type="button" onClick={submit} disabled={!trimmed || tooLong || publish.isPending}>

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { expect, test } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
@@ -100,7 +100,16 @@ test('лайк оптимистичен и откатывается при ош�
   server.use(
     ...authed(),
     http.get('/feed', () => HttpResponse.json({ posts: [post({ likes: 3, liked: false })], nextCursor: '' })),
-    http.post('/posts/p1/like', () => HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 })),
+    // Искусственная задержка ответа: без неё синхронный onMutate и
+    // последующий откат в onError укладываются в один и тот же микротаск,
+    // и «4» никогда не долетает до DOM как отдельный наблюдаемый кадр —
+    // тест видел бы «3» → «3» и на бракованном коде тоже (см. пункт 3
+    // финального ревью). Задержка даёт waitFor реальное окно, где в кэше
+    // лежит именно оптимистичное значение.
+    http.post('/posts/p1/like', async () => {
+      await delay(50);
+      return HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }),
   );
 
   renderFeed();
@@ -109,7 +118,12 @@ test('лайк оптимистичен и откатывается при ош�
 
   await userEvent.click(likeButton);
 
-  // Сначала оптимистично 4, затем откат к 3 после ответа сервера.
+  // Сначала оптимистично 4 — ДО ответа сервера. Без этого промежуточного
+  // ассерта тест не отличает «онМutate вообще не патчил кэш» от «патчил и
+  // откатил»: оба случая заканчиваются одинаковым «3» в конце.
+  await waitFor(() => expect(likeButton).toHaveTextContent('4'));
+
+  // ...затем откат к 3, когда сервер ответил 500.
   await waitFor(() => expect(likeButton).toHaveTextContent('3'));
 });
 
@@ -187,6 +201,23 @@ test('опубликованный пост встаёт в начало лен�
 
   const posts = await screen.findAllByRole('article');
   expect(within(posts[0]).getByText('свежая мысль')).toBeInTheDocument();
+});
+
+test('ошибка публикации показана, а текст поста не пропадает', async () => {
+  server.use(
+    ...authed(),
+    http.get('/feed', () => HttpResponse.json({ posts: [post()], nextCursor: '' })),
+    http.post('/posts', () => HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 })),
+  );
+
+  renderFeed();
+  await userEvent.click(await screen.findByPlaceholderText(/поделитесь мыслью/i));
+  await userEvent.type(screen.getByRole('textbox'), 'свежая мысль');
+  await userEvent.click(screen.getByRole('button', { name: /опубликовать/i }));
+
+  expect(await screen.findByRole('alert')).toBeInTheDocument();
+  // Текст не пропадает — пользователь может просто повторить попытку.
+  expect(screen.getByRole('textbox')).toHaveValue('свежая мысль');
 });
 
 test('нереализованные действия видны, но неактивны', async () => {
