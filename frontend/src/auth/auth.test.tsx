@@ -109,6 +109,58 @@ test('после регистрации /me ретраится, пока NATS н
   expect(await screen.findByPlaceholderText(/поделитесь мыслью/i)).toBeInTheDocument();
 });
 
+test('транзиентный сбой /me на старте (504) не разлогинивает — сессия остаётся', async () => {
+  // Уже наблюдалось вживую: 504 при холодном gRPC-соединении user-service
+  // сразу после старта контейнеров. Валидная refresh-cookie есть — терять
+  // сессию из-за этого нельзя.
+  server.use(
+    http.post('/auth/refresh', () => HttpResponse.json({ access_token: 'tkn' })),
+    http.get('/me', () => new HttpResponse(null, { status: 504 })),
+    emptyFeed(),
+  );
+
+  renderApp('/');
+
+  expect(await screen.findByPlaceholderText(/поделитесь мыслью/i)).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: /войти/i })).not.toBeInTheDocument();
+});
+
+test('вход прошёл, /me ответил 500 — пользователь всё равно в приложении', async () => {
+  server.use(
+    http.post('/auth/refresh', () => new HttpResponse(null, { status: 401 })),
+    http.post('/auth/login', () => HttpResponse.json({ access_token: 'tkn' })),
+    http.get('/me', () => new HttpResponse(null, { status: 500 })),
+    emptyFeed(),
+  );
+
+  renderApp('/login');
+  await screen.findByRole('heading', { name: /войти/i });
+
+  await userEvent.type(screen.getByLabelText(/e-mail/i), 'feed@example.com');
+  await userEvent.type(screen.getByLabelText(/пароль/i), 'password123');
+  await userEvent.click(screen.getByRole('button', { name: /войти/i }));
+
+  // Логин прошёл (токен уже получен) — сбой /me не повод показывать
+  // «не удалось войти» или любую другую форменную ошибку.
+  expect(await screen.findByPlaceholderText(/поделитесь мыслью/i)).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+test('провал POST /auth/logout не роняет приложение необработанным отклонением', async () => {
+  server.use(...[
+    http.post('/auth/refresh', () => HttpResponse.json({ access_token: 'tkn' })),
+    http.get('/me', () => HttpResponse.json(user)),
+  ], emptyFeed(), http.post('/auth/logout', () => new HttpResponse(null, { status: 500 })));
+
+  renderApp('/');
+  await screen.findByPlaceholderText(/поделитесь мыслью/i);
+
+  await userEvent.click(screen.getByRole('button', { name: /выйти/i }));
+
+  // Локальный выход происходит независимо от сетевого исхода /auth/logout.
+  await screen.findByRole('heading', { name: /войти/i });
+});
+
 test('занятый e-mail показывает сообщение, а не роняет форму', async () => {
   server.use(
     http.post('/auth/refresh', () => new HttpResponse(null, { status: 401 })),
