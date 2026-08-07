@@ -34,13 +34,18 @@ async function refreshToken(): Promise<string> {
     credentials: 'include',
   });
   if (!res.ok) {
-    throw new ApiError(res.status, 'session expired');
+    throw await toError(res);
   }
   const data = (await res.json()) as TokenResponse;
   return data.access_token;
 }
 
-function refreshOnce(): Promise<string> {
+// Экспортирована намеренно: authApi.refresh() (вызов bootstrap-а сессии на
+// старте приложения) обязан идти через ЭТОТ ЖЕ общий промис, а не запускать
+// свой fetch — иначе single-flight guard в apiFetch не спасёт, если refresh
+// и обычный запрос, поймавший 401, стартуют одновременно (ровно сценарий
+// bootstrap-а: восстановление сессии параллельно с загрузкой ленты/`/me`).
+export function refreshOnce(): Promise<string> {
   if (!refreshing) {
     refreshing = refreshToken()
       .then((token) => {

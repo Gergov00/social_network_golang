@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { server } from '../test/server';
+import { authApi } from './auth';
 import { ApiError, apiFetch, setOnAuthLost } from './client';
 import { tokenStore } from './tokenStore';
 
@@ -55,6 +56,33 @@ describe('обновление токена', () => {
     expect(refreshCalls).toBe(1);
     expect(me).toEqual({ id: 'me' });
     expect(feed).toEqual({ posts: [], nextCursor: '' });
+    expect(tokenStore.get()).toBe('fresh-token');
+  });
+
+  test('authApi.refresh() параллельно с 401 в apiFetch даёт РОВНО ОДИН POST /auth/refresh', async () => {
+    // Ровно шов bootstrap-а: восстановление сессии (authApi.refresh()) на
+    // старте приложения идёт одновременно с загрузкой данных (apiFetch
+    // ловит 401). Оба обязаны дождаться ОДНОГО общего промиса refreshOnce(),
+    // а не запускать каждый свой /auth/refresh — иначе второй уходит с уже
+    // использованным токеном и роняет всю семью на auth-service.
+    let refreshCalls = 0;
+    server.use(
+      http.post('/auth/refresh', async () => {
+        refreshCalls += 1;
+        await new Promise((r) => setTimeout(r, 20));
+        return HttpResponse.json({ access_token: 'fresh-token' });
+      }),
+      http.get('/me', ({ request }) =>
+        request.headers.get('Authorization') === 'Bearer fresh-token'
+          ? HttpResponse.json({ id: 'me' })
+          : new HttpResponse(null, { status: 401 }),
+      ),
+    );
+
+    const [me] = await Promise.all([apiFetch('/me'), authApi.refresh()]);
+
+    expect(refreshCalls).toBe(1);
+    expect(me).toEqual({ id: 'me' });
     expect(tokenStore.get()).toBe('fresh-token');
   });
 

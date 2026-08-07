@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, refreshOnce } from './client';
 import { tokenStore } from './tokenStore';
 import type { TokenResponse } from './types';
 
@@ -23,12 +23,17 @@ export const authApi = {
     tokenStore.set(res.access_token);
   },
 
+  // Идёт через тот же single-flight refreshOnce(), что и 401-обработка в
+  // apiFetch — НЕ через apiFetch(..., { skipAuth: true }). Это критично на
+  // bootstrap-е: восстановление сессии (вызов authApi.refresh()) идёт
+  // параллельно с загрузкой ленты/`/me`, которые тоже могут словить 401.
+  // Два независимых POST /auth/refresh в этот момент — это второй refresh,
+  // предъявляющий уже использованный токен: auth-service сочтёт это кражей
+  // и отзовёт всю семью (RevokeByFamilyID), разлогинив пользователя везде.
+  // refreshOnce() сам кладёт токен в tokenStore — здесь второй раз это
+  // делать не нужно (иначе двойная запись).
   async refresh(): Promise<void> {
-    const res = await apiFetch<TokenResponse>('/auth/refresh', {
-      method: 'POST',
-      skipAuth: true,
-    });
-    tokenStore.set(res.access_token);
+    await refreshOnce();
   },
 
   async logout(): Promise<void> {
