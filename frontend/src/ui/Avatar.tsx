@@ -16,7 +16,7 @@ const GRADIENTS = [
   'linear-gradient(135deg,#2a86d6,#1d63a6)',
   'linear-gradient(135deg,#2aa77c,#1d7d5c)',
   'linear-gradient(135deg,#e0556b,#b93d51)',
-  'linear-gradient(135deg,#f0a martin,#d98324)'.replace(' martin', '35c'),
+  'linear-gradient(135deg,#f0a35c,#d98324)',
 ];
 
 function hash(value: string): number {
