@@ -23,10 +23,10 @@ function CommentRow({ comment, postId }: { comment: CommentDTO; postId: string }
         handle={author?.handle ?? comment.authorId}
         size={36}
       />
-      <div className="bubble">
-        <div className="post-name">{name}</div>
-        <div>{comment.text}</div>
-        <div className="post-sub">
+      <div className="c-bubble">
+        <span className="c-name">{name}</span>
+        <span className="c-text">{comment.text}</span>
+        <div className="c-meta">
           {relativeTime(comment.createdAt)}
           <button
             className={`iact${comment.liked ? ' liked' : ''}`}
@@ -38,7 +38,7 @@ function CommentRow({ comment, postId }: { comment: CommentDTO; postId: string }
             <Icon name="heart" fill={comment.liked} size={14} /> {comment.likes}
           </button>
           {/* Ответов на комментарии бэкенд не умеет: плоская ветка. */}
-          <button className="iact" type="button" disabled title="Скоро">Ответить</button>
+          <button className="c-act" type="button" disabled title="Скоро">Ответить</button>
         </div>
       </div>
     </div>
@@ -47,10 +47,17 @@ function CommentRow({ comment, postId }: { comment: CommentDTO; postId: string }
 
 export function CommentList({ postId }: { postId: string }) {
   const query = useComments(postId);
-  const comments = query.data?.pages.flatMap((page) => page.comments) ?? [];
+  // Дедуп по id обязателен: useAddComment дописывает свежий комментарий в
+  // конец загруженной страницы, не сдвигая её nextCursor, поэтому тот же
+  // комментарий придёт ещё раз со следующей серверной страницей. Ветка ASC —
+  // в отличие от ленты (DESC), где добавленный в начало пост повторно
+  // прийти не может.
+  const comments = [...new Map(
+    (query.data?.pages.flatMap((page) => page.comments) ?? []).map((c) => [c.id, c]),
+  ).values()];
 
   return (
-    <div className="comments">
+    <div className="comment-list">
       {query.isPending && <Spinner />}
 
       {query.isError && (

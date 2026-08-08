@@ -23,8 +23,8 @@ export function CommentComposer({ postId }: { postId: string }) {
   };
 
   return (
-    <div className="card comment-composer">
-      <div className="composer-top">
+    <div>
+      <div className="comment-bar">
         <Avatar id={user?.id ?? ''} name={user?.name ?? ''} handle={user?.handle ?? ''} size={36} />
         <input
           value={text}
@@ -48,7 +48,16 @@ export function CommentComposer({ postId }: { postId: string }) {
         </button>
       </div>
 
-      {tooLong && <span className="hint">Длиннее {MAX_RUNES} символов</span>}
+      {/* Правило дизайн-системы для .hint — это `.field .hint`, а не голый
+          .hint: без родителя .field цвет/отступ не применялись бы. Изобретать
+          новый CSS-класс нельзя, поэтому заворачиваем в тот же .field, что
+          использует форма авторизации/настроек для точно такого же
+          назначения (мелкая предупреждающая подпись под полем ввода). */}
+      {tooLong && (
+        <div className="field">
+          <span className="hint">Длиннее {MAX_RUNES} символов</span>
+        </div>
+      )}
 
       {add.isError && (
         <ErrorBox message="Не удалось отправить комментарий. Попробуйте ещё раз." onRetry={submit} />

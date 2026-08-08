@@ -4,17 +4,19 @@ import type { FeedPage, PostDTO } from '../../api/types';
 import { FEED_KEY } from './useFeed';
 import { USER_POSTS_KEY } from '../profile/useUserPosts';
 
-type ListCache = { pages: FeedPage[]; pageParams: unknown[] };
+export type ListCache = { pages: FeedPage[]; pageParams: unknown[] };
 
 // Один пост живёт сразу в нескольких кэшах: лента, вкладка «Записи» своего
 // профиля, вкладка «Записи» чужого. Патчить только ленту — значит оставить
 // в остальных списках устаревший счётчик до перезагрузки страницы.
-const listFilter = {
+// Экспортируется: useComments.ts переиспользует его для синхронизации
+// счётчика комментариев по той же причине.
+export const listFilter = {
   predicate: (query: Query) =>
     query.queryKey[0] === FEED_KEY[0] || query.queryKey[0] === USER_POSTS_KEY,
 };
 
-function patchList(cache: ListCache | undefined, id: string, patch: Partial<PostDTO>) {
+export function patchList(cache: ListCache | undefined, id: string, patch: Partial<PostDTO>) {
   if (!cache) return cache;
   return {
     ...cache,

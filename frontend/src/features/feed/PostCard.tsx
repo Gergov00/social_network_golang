@@ -93,7 +93,13 @@ export function PostCard({ post, detail = false }: { post: PostDTO; detail?: boo
             счётчиком, в detail-режиме — просто счётчик (мы уже здесь).
             Репост и закладки бэкенд по-прежнему не умеет. */}
         {detail ? (
-          <span className="iact" aria-label="Комментарии">
+          // Голый <span> имеет неявную role="generic", а ARIA запрещает
+          // именовать generic-элементы — aria-label на нём молча
+          // игнорировался бы вспомогательными технологиями. role="group" —
+          // именуемая, некликабельная роль: сохраняет то же поведение
+          // (не кнопка, не ссылка — мы уже на странице записи), но
+          // возвращает aria-label в доступное имя.
+          <span className="iact" role="group" aria-label="Комментарии">
             <Icon name="comment" /> {post.comments}
           </span>
         ) : (

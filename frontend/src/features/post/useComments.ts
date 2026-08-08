@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { commentsApi } from '../../api/comments';
-import type { CommentDTO, CommentsPage } from '../../api/types';
+import type { CommentDTO, CommentsPage, PostDTO } from '../../api/types';
+import { listFilter, patchList, type ListCache } from '../feed/useLike';
 
 type CommentsCache = { pages: CommentsPage[]; pageParams: unknown[] };
 
@@ -36,9 +37,20 @@ export function useAddComment(postId: string) {
 
       // Счётчик на карточке поста двигаем сами: сервер вернул комментарий,
       // а не пост, и без этого число под записью отстанет до перезагрузки.
-      queryClient.setQueryData<{ comments: number }>(['post', postId], (old) =>
+      // Типизируем как PostDTO целиком (как useLike.ts:58), а не узким
+      // { comments: number } — там же лежат liked/likes, которые никто не
+      // должен случайно затереть неполным объектом.
+      const updated = queryClient.setQueryData<PostDTO>(['post', postId], (old) =>
         old ? { ...old, comments: old.comments + 1 } : old,
       );
+
+      // Пост живёт сразу в нескольких кэшах (лента, «Записи» своего и
+      // чужого профиля) — patch только ['post', id] оставил бы счётчик в
+      // списках устаревшим до перезагрузки. listFilter — тот же предикат,
+      // что useLike.ts применяет для лайков (см. useLike.ts:12-15).
+      if (updated) {
+        queryClient.setQueriesData<ListCache>(listFilter, (old) => patchList(old, postId, { comments: updated.comments }));
+      }
     },
   });
 }
