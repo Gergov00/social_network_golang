@@ -191,12 +191,13 @@ func mapError(err error) error {
 
 func toProto(post *domain.Post) *postv1.Post {
 	return &postv1.Post{
-		Id:         post.ID.String(),
-		AuthorId:   post.AuthorID.String(),
-		Text:       post.Text,
-		LikesCount: post.LikesCount,
-		Liked:      post.Liked,
-		CreatedAt:  timestamppb.New(post.CreatedAt),
-		UpdatedAt:  timestamppb.New(post.UpdatedAt),
+		Id:            post.ID.String(),
+		AuthorId:      post.AuthorID.String(),
+		Text:          post.Text,
+		LikesCount:    post.LikesCount,
+		CommentsCount: post.CommentsCount,
+		Liked:         post.Liked,
+		CreatedAt:     timestamppb.New(post.CreatedAt),
+		UpdatedAt:     timestamppb.New(post.UpdatedAt),
 	}
 }

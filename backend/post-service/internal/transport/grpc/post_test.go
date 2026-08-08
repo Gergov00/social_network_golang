@@ -96,7 +96,7 @@ func newTestClient(t *testing.T, repo domain.PostRepository) postv1.PostServiceC
 	t.Helper()
 
 	lis := bufconn.Listen(1024 * 1024)
-	srv := NewServer(NewPostHandler(service.NewPostService(repo)))
+	srv := NewServer(NewPostHandler(service.NewPostService(repo)), NewCommentHandler(service.NewCommentService(&fakeGRPCCommentRepo{})))
 
 	go func() {
 		if err := srv.Serve(lis); err != nil {
@@ -152,6 +152,10 @@ func TestContractHasNoCallerFields(t *testing.T) {
 		&postv1.GetFeedRequest{},
 		&postv1.LikePostRequest{},
 		&postv1.UnlikePostRequest{},
+		&postv1.ListCommentsRequest{},
+		&postv1.CreateCommentRequest{},
+		&postv1.LikeCommentRequest{},
+		&postv1.UnlikeCommentRequest{},
 	}
 
 	forbidden := []string{"author", "user", "viewer", "caller", "actor"}

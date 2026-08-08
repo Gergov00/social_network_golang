@@ -325,3 +325,227 @@ var PostService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "ahishka/post/v1/post.proto",
 }
+
+const (
+	CommentService_ListComments_FullMethodName  = "/ahishka.post.v1.CommentService/ListComments"
+	CommentService_CreateComment_FullMethodName = "/ahishka.post.v1.CommentService/CreateComment"
+	CommentService_LikeComment_FullMethodName   = "/ahishka.post.v1.CommentService/LikeComment"
+	CommentService_UnlikeComment_FullMethodName = "/ahishka.post.v1.CommentService/UnlikeComment"
+)
+
+// CommentServiceClient is the client API for CommentService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// CommentService — комментарии к постам. Правило то же, что у PostService:
+// автора и зрителя сообщения НЕ несут, они приезжают в metadata x-user-id.
+// post_id и comment_id — это «про что», а не «кто».
+type CommentServiceClient interface {
+	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error)
+	CreateComment(ctx context.Context, in *CreateCommentRequest, opts ...grpc.CallOption) (*CreateCommentResponse, error)
+	LikeComment(ctx context.Context, in *LikeCommentRequest, opts ...grpc.CallOption) (*LikeCommentResponse, error)
+	UnlikeComment(ctx context.Context, in *UnlikeCommentRequest, opts ...grpc.CallOption) (*UnlikeCommentResponse, error)
+}
+
+type commentServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewCommentServiceClient(cc grpc.ClientConnInterface) CommentServiceClient {
+	return &commentServiceClient{cc}
+}
+
+func (c *commentServiceClient) ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCommentsResponse)
+	err := c.cc.Invoke(ctx, CommentService_ListComments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commentServiceClient) CreateComment(ctx context.Context, in *CreateCommentRequest, opts ...grpc.CallOption) (*CreateCommentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCommentResponse)
+	err := c.cc.Invoke(ctx, CommentService_CreateComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commentServiceClient) LikeComment(ctx context.Context, in *LikeCommentRequest, opts ...grpc.CallOption) (*LikeCommentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LikeCommentResponse)
+	err := c.cc.Invoke(ctx, CommentService_LikeComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commentServiceClient) UnlikeComment(ctx context.Context, in *UnlikeCommentRequest, opts ...grpc.CallOption) (*UnlikeCommentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnlikeCommentResponse)
+	err := c.cc.Invoke(ctx, CommentService_UnlikeComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CommentServiceServer is the server API for CommentService service.
+// All implementations must embed UnimplementedCommentServiceServer
+// for forward compatibility.
+//
+// CommentService — комментарии к постам. Правило то же, что у PostService:
+// автора и зрителя сообщения НЕ несут, они приезжают в metadata x-user-id.
+// post_id и comment_id — это «про что», а не «кто».
+type CommentServiceServer interface {
+	ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error)
+	CreateComment(context.Context, *CreateCommentRequest) (*CreateCommentResponse, error)
+	LikeComment(context.Context, *LikeCommentRequest) (*LikeCommentResponse, error)
+	UnlikeComment(context.Context, *UnlikeCommentRequest) (*UnlikeCommentResponse, error)
+	mustEmbedUnimplementedCommentServiceServer()
+}
+
+// UnimplementedCommentServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedCommentServiceServer struct{}
+
+func (UnimplementedCommentServiceServer) ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListComments not implemented")
+}
+func (UnimplementedCommentServiceServer) CreateComment(context.Context, *CreateCommentRequest) (*CreateCommentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateComment not implemented")
+}
+func (UnimplementedCommentServiceServer) LikeComment(context.Context, *LikeCommentRequest) (*LikeCommentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LikeComment not implemented")
+}
+func (UnimplementedCommentServiceServer) UnlikeComment(context.Context, *UnlikeCommentRequest) (*UnlikeCommentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnlikeComment not implemented")
+}
+func (UnimplementedCommentServiceServer) mustEmbedUnimplementedCommentServiceServer() {}
+func (UnimplementedCommentServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeCommentServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CommentServiceServer will
+// result in compilation errors.
+type UnsafeCommentServiceServer interface {
+	mustEmbedUnimplementedCommentServiceServer()
+}
+
+func RegisterCommentServiceServer(s grpc.ServiceRegistrar, srv CommentServiceServer) {
+	// If the following call panics, it indicates UnimplementedCommentServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&CommentService_ServiceDesc, srv)
+}
+
+func _CommentService_ListComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCommentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).ListComments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_ListComments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).ListComments(ctx, req.(*ListCommentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommentService_CreateComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).CreateComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_CreateComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).CreateComment(ctx, req.(*CreateCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommentService_LikeComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LikeCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).LikeComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_LikeComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).LikeComment(ctx, req.(*LikeCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommentService_UnlikeComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlikeCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).UnlikeComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_UnlikeComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).UnlikeComment(ctx, req.(*UnlikeCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// CommentService_ServiceDesc is the grpc.ServiceDesc for CommentService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var CommentService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "ahishka.post.v1.CommentService",
+	HandlerType: (*CommentServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListComments",
+			Handler:    _CommentService_ListComments_Handler,
+		},
+		{
+			MethodName: "CreateComment",
+			Handler:    _CommentService_CreateComment_Handler,
+		},
+		{
+			MethodName: "LikeComment",
+			Handler:    _CommentService_LikeComment_Handler,
+		},
+		{
+			MethodName: "UnlikeComment",
+			Handler:    _CommentService_UnlikeComment_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "ahishka/post/v1/post.proto",
+}

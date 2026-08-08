@@ -33,6 +33,7 @@ message Post {
   bool liked = 5;
   google.protobuf.Timestamp created_at = 6;
   google.protobuf.Timestamp updated_at = 7;
+  int32 comments_count = 8;
 }
 
 message CreatePostRequest {
@@ -95,4 +96,65 @@ message ListUserPostsRequest {
 message ListUserPostsResponse {
   repeated Post posts = 1;
   string next_cursor = 2;
+}
+
+// CommentService — комментарии к постам. Правило то же, что у PostService:
+// автора и зрителя сообщения НЕ несут, они приезжают в metadata x-user-id.
+// post_id и comment_id — это «про что», а не «кто».
+service CommentService {
+  rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
+  rpc CreateComment(CreateCommentRequest) returns (CreateCommentResponse);
+  rpc LikeComment(LikeCommentRequest) returns (LikeCommentResponse);
+  rpc UnlikeComment(UnlikeCommentRequest) returns (UnlikeCommentResponse);
+}
+
+message Comment {
+  string id = 1;
+  string post_id = 2;
+  // author_id == users.id из user-service; имя/handle добирает gateway.
+  string author_id = 3;
+  string text = 4;
+  int32 likes_count = 5;
+  // liked — относительно вызывающего, а не свойство комментария.
+  bool liked = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// Комментарии отдаются ПО ВОЗРАСТАНИЮ created_at — обсуждение читается
+// сверху вниз, в отличие от ленты.
+message ListCommentsRequest {
+  string post_id = 1;
+  string cursor = 2;
+  int32 limit = 3;
+}
+
+message ListCommentsResponse {
+  repeated Comment comments = 1;
+  string next_cursor = 2;
+}
+
+message CreateCommentRequest {
+  string post_id = 1;
+  string text = 2;
+}
+
+message CreateCommentResponse {
+  Comment comment = 1;
+}
+
+message LikeCommentRequest {
+  string comment_id = 1;
+}
+
+message LikeCommentResponse {
+  Comment comment = 1;
+}
+
+message UnlikeCommentRequest {
+  string comment_id = 1;
+}
+
+message UnlikeCommentResponse {
+  Comment comment = 1;
 }

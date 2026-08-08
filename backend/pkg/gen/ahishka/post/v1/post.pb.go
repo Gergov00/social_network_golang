@@ -34,6 +34,7 @@ type Post struct {
 	Liked         bool                   `protobuf:"varint,5,opt,name=liked,proto3" json:"liked,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CommentsCount int32                  `protobuf:"varint,8,opt,name=comments_count,json=commentsCount,proto3" json:"comments_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -115,6 +116,13 @@ func (x *Post) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *Post) GetCommentsCount() int32 {
+	if x != nil {
+		return x.CommentsCount
+	}
+	return 0
 }
 
 type CreatePostRequest struct {
@@ -694,11 +702,499 @@ func (x *ListUserPostsResponse) GetNextCursor() string {
 	return ""
 }
 
+type Comment struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	PostId string                 `protobuf:"bytes,2,opt,name=post_id,json=postId,proto3" json:"post_id,omitempty"`
+	// author_id == users.id из user-service; имя/handle добирает gateway.
+	AuthorId   string `protobuf:"bytes,3,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Text       string `protobuf:"bytes,4,opt,name=text,proto3" json:"text,omitempty"`
+	LikesCount int32  `protobuf:"varint,5,opt,name=likes_count,json=likesCount,proto3" json:"likes_count,omitempty"`
+	// liked — относительно вызывающего, а не свойство комментария.
+	Liked         bool                   `protobuf:"varint,6,opt,name=liked,proto3" json:"liked,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Comment) Reset() {
+	*x = Comment{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Comment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Comment) ProtoMessage() {}
+
+func (x *Comment) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Comment.ProtoReflect.Descriptor instead.
+func (*Comment) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *Comment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Comment) GetPostId() string {
+	if x != nil {
+		return x.PostId
+	}
+	return ""
+}
+
+func (x *Comment) GetAuthorId() string {
+	if x != nil {
+		return x.AuthorId
+	}
+	return ""
+}
+
+func (x *Comment) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *Comment) GetLikesCount() int32 {
+	if x != nil {
+		return x.LikesCount
+	}
+	return 0
+}
+
+func (x *Comment) GetLiked() bool {
+	if x != nil {
+		return x.Liked
+	}
+	return false
+}
+
+func (x *Comment) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Comment) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+// Комментарии отдаются ПО ВОЗРАСТАНИЮ created_at — обсуждение читается
+// сверху вниз, в отличие от ленты.
+type ListCommentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PostId        string                 `protobuf:"bytes,1,opt,name=post_id,json=postId,proto3" json:"post_id,omitempty"`
+	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCommentsRequest) Reset() {
+	*x = ListCommentsRequest{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCommentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCommentsRequest) ProtoMessage() {}
+
+func (x *ListCommentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCommentsRequest.ProtoReflect.Descriptor instead.
+func (*ListCommentsRequest) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListCommentsRequest) GetPostId() string {
+	if x != nil {
+		return x.PostId
+	}
+	return ""
+}
+
+func (x *ListCommentsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *ListCommentsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListCommentsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Comments      []*Comment             `protobuf:"bytes,1,rep,name=comments,proto3" json:"comments,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCommentsResponse) Reset() {
+	*x = ListCommentsResponse{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCommentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCommentsResponse) ProtoMessage() {}
+
+func (x *ListCommentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCommentsResponse.ProtoReflect.Descriptor instead.
+func (*ListCommentsResponse) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ListCommentsResponse) GetComments() []*Comment {
+	if x != nil {
+		return x.Comments
+	}
+	return nil
+}
+
+func (x *ListCommentsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
+type CreateCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PostId        string                 `protobuf:"bytes,1,opt,name=post_id,json=postId,proto3" json:"post_id,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCommentRequest) Reset() {
+	*x = CreateCommentRequest{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommentRequest) ProtoMessage() {}
+
+func (x *CreateCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommentRequest.ProtoReflect.Descriptor instead.
+func (*CreateCommentRequest) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *CreateCommentRequest) GetPostId() string {
+	if x != nil {
+		return x.PostId
+	}
+	return ""
+}
+
+func (x *CreateCommentRequest) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type CreateCommentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Comment       *Comment               `protobuf:"bytes,1,opt,name=comment,proto3" json:"comment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCommentResponse) Reset() {
+	*x = CreateCommentResponse{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommentResponse) ProtoMessage() {}
+
+func (x *CreateCommentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommentResponse.ProtoReflect.Descriptor instead.
+func (*CreateCommentResponse) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *CreateCommentResponse) GetComment() *Comment {
+	if x != nil {
+		return x.Comment
+	}
+	return nil
+}
+
+type LikeCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CommentId     string                 `protobuf:"bytes,1,opt,name=comment_id,json=commentId,proto3" json:"comment_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LikeCommentRequest) Reset() {
+	*x = LikeCommentRequest{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LikeCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LikeCommentRequest) ProtoMessage() {}
+
+func (x *LikeCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LikeCommentRequest.ProtoReflect.Descriptor instead.
+func (*LikeCommentRequest) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *LikeCommentRequest) GetCommentId() string {
+	if x != nil {
+		return x.CommentId
+	}
+	return ""
+}
+
+type LikeCommentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Comment       *Comment               `protobuf:"bytes,1,opt,name=comment,proto3" json:"comment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LikeCommentResponse) Reset() {
+	*x = LikeCommentResponse{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LikeCommentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LikeCommentResponse) ProtoMessage() {}
+
+func (x *LikeCommentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LikeCommentResponse.ProtoReflect.Descriptor instead.
+func (*LikeCommentResponse) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *LikeCommentResponse) GetComment() *Comment {
+	if x != nil {
+		return x.Comment
+	}
+	return nil
+}
+
+type UnlikeCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CommentId     string                 `protobuf:"bytes,1,opt,name=comment_id,json=commentId,proto3" json:"comment_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlikeCommentRequest) Reset() {
+	*x = UnlikeCommentRequest{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlikeCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlikeCommentRequest) ProtoMessage() {}
+
+func (x *UnlikeCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlikeCommentRequest.ProtoReflect.Descriptor instead.
+func (*UnlikeCommentRequest) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *UnlikeCommentRequest) GetCommentId() string {
+	if x != nil {
+		return x.CommentId
+	}
+	return ""
+}
+
+type UnlikeCommentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Comment       *Comment               `protobuf:"bytes,1,opt,name=comment,proto3" json:"comment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlikeCommentResponse) Reset() {
+	*x = UnlikeCommentResponse{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlikeCommentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlikeCommentResponse) ProtoMessage() {}
+
+func (x *UnlikeCommentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlikeCommentResponse.ProtoReflect.Descriptor instead.
+func (*UnlikeCommentResponse) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *UnlikeCommentResponse) GetComment() *Comment {
+	if x != nil {
+		return x.Comment
+	}
+	return nil
+}
+
 var File_ahishka_post_v1_post_proto protoreflect.FileDescriptor
 
 const file_ahishka_post_v1_post_proto_rawDesc = "" +
 	"\n" +
-	"\x1aahishka/post/v1/post.proto\x12\x0fahishka.post.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf4\x01\n" +
+	"\x1aahishka/post/v1/post.proto\x12\x0fahishka.post.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x02\n" +
 	"\x04Post\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tauthor_id\x18\x02 \x01(\tR\bauthorId\x12\x12\n" +
@@ -709,7 +1205,8 @@ const file_ahishka_post_v1_post_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"'\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12%\n" +
+	"\x0ecomments_count\x18\b \x01(\x05R\rcommentsCount\"'\n" +
 	"\x11CreatePostRequest\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\"?\n" +
 	"\x12CreatePostResponse\x12)\n" +
@@ -740,7 +1237,42 @@ const file_ahishka_post_v1_post_proto_rawDesc = "" +
 	"\x15ListUserPostsResponse\x12+\n" +
 	"\x05posts\x18\x01 \x03(\v2\x15.ahishka.post.v1.PostR\x05posts\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor2\x88\x04\n" +
+	"nextCursor\"\x90\x02\n" +
+	"\aComment\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\apost_id\x18\x02 \x01(\tR\x06postId\x12\x1b\n" +
+	"\tauthor_id\x18\x03 \x01(\tR\bauthorId\x12\x12\n" +
+	"\x04text\x18\x04 \x01(\tR\x04text\x12\x1f\n" +
+	"\vlikes_count\x18\x05 \x01(\x05R\n" +
+	"likesCount\x12\x14\n" +
+	"\x05liked\x18\x06 \x01(\bR\x05liked\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\\\n" +
+	"\x13ListCommentsRequest\x12\x17\n" +
+	"\apost_id\x18\x01 \x01(\tR\x06postId\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"m\n" +
+	"\x14ListCommentsResponse\x124\n" +
+	"\bcomments\x18\x01 \x03(\v2\x18.ahishka.post.v1.CommentR\bcomments\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"C\n" +
+	"\x14CreateCommentRequest\x12\x17\n" +
+	"\apost_id\x18\x01 \x01(\tR\x06postId\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"K\n" +
+	"\x15CreateCommentResponse\x122\n" +
+	"\acomment\x18\x01 \x01(\v2\x18.ahishka.post.v1.CommentR\acomment\"3\n" +
+	"\x12LikeCommentRequest\x12\x1d\n" +
+	"\n" +
+	"comment_id\x18\x01 \x01(\tR\tcommentId\"I\n" +
+	"\x13LikeCommentResponse\x122\n" +
+	"\acomment\x18\x01 \x01(\v2\x18.ahishka.post.v1.CommentR\acomment\"5\n" +
+	"\x14UnlikeCommentRequest\x12\x1d\n" +
+	"\n" +
+	"comment_id\x18\x01 \x01(\tR\tcommentId\"K\n" +
+	"\x15UnlikeCommentResponse\x122\n" +
+	"\acomment\x18\x01 \x01(\v2\x18.ahishka.post.v1.CommentR\acomment2\x88\x04\n" +
 	"\vPostService\x12U\n" +
 	"\n" +
 	"CreatePost\x12\".ahishka.post.v1.CreatePostRequest\x1a#.ahishka.post.v1.CreatePostResponse\x12L\n" +
@@ -749,7 +1281,12 @@ const file_ahishka_post_v1_post_proto_rawDesc = "" +
 	"\rListUserPosts\x12%.ahishka.post.v1.ListUserPostsRequest\x1a&.ahishka.post.v1.ListUserPostsResponse\x12O\n" +
 	"\bLikePost\x12 .ahishka.post.v1.LikePostRequest\x1a!.ahishka.post.v1.LikePostResponse\x12U\n" +
 	"\n" +
-	"UnlikePost\x12\".ahishka.post.v1.UnlikePostRequest\x1a#.ahishka.post.v1.UnlikePostResponseB(Z&ahishka/pkg/gen/ahishka/post/v1;postv1b\x06proto3"
+	"UnlikePost\x12\".ahishka.post.v1.UnlikePostRequest\x1a#.ahishka.post.v1.UnlikePostResponse2\x87\x03\n" +
+	"\x0eCommentService\x12[\n" +
+	"\fListComments\x12$.ahishka.post.v1.ListCommentsRequest\x1a%.ahishka.post.v1.ListCommentsResponse\x12^\n" +
+	"\rCreateComment\x12%.ahishka.post.v1.CreateCommentRequest\x1a&.ahishka.post.v1.CreateCommentResponse\x12X\n" +
+	"\vLikeComment\x12#.ahishka.post.v1.LikeCommentRequest\x1a$.ahishka.post.v1.LikeCommentResponse\x12^\n" +
+	"\rUnlikeComment\x12%.ahishka.post.v1.UnlikeCommentRequest\x1a&.ahishka.post.v1.UnlikeCommentResponseB(Z&ahishka/pkg/gen/ahishka/post/v1;postv1b\x06proto3"
 
 var (
 	file_ahishka_post_v1_post_proto_rawDescOnce sync.Once
@@ -763,7 +1300,7 @@ func file_ahishka_post_v1_post_proto_rawDescGZIP() []byte {
 	return file_ahishka_post_v1_post_proto_rawDescData
 }
 
-var file_ahishka_post_v1_post_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_ahishka_post_v1_post_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_ahishka_post_v1_post_proto_goTypes = []any{
 	(*Post)(nil),                  // 0: ahishka.post.v1.Post
 	(*CreatePostRequest)(nil),     // 1: ahishka.post.v1.CreatePostRequest
@@ -778,34 +1315,57 @@ var file_ahishka_post_v1_post_proto_goTypes = []any{
 	(*UnlikePostResponse)(nil),    // 10: ahishka.post.v1.UnlikePostResponse
 	(*ListUserPostsRequest)(nil),  // 11: ahishka.post.v1.ListUserPostsRequest
 	(*ListUserPostsResponse)(nil), // 12: ahishka.post.v1.ListUserPostsResponse
-	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
+	(*Comment)(nil),               // 13: ahishka.post.v1.Comment
+	(*ListCommentsRequest)(nil),   // 14: ahishka.post.v1.ListCommentsRequest
+	(*ListCommentsResponse)(nil),  // 15: ahishka.post.v1.ListCommentsResponse
+	(*CreateCommentRequest)(nil),  // 16: ahishka.post.v1.CreateCommentRequest
+	(*CreateCommentResponse)(nil), // 17: ahishka.post.v1.CreateCommentResponse
+	(*LikeCommentRequest)(nil),    // 18: ahishka.post.v1.LikeCommentRequest
+	(*LikeCommentResponse)(nil),   // 19: ahishka.post.v1.LikeCommentResponse
+	(*UnlikeCommentRequest)(nil),  // 20: ahishka.post.v1.UnlikeCommentRequest
+	(*UnlikeCommentResponse)(nil), // 21: ahishka.post.v1.UnlikeCommentResponse
+	(*timestamppb.Timestamp)(nil), // 22: google.protobuf.Timestamp
 }
 var file_ahishka_post_v1_post_proto_depIdxs = []int32{
-	13, // 0: ahishka.post.v1.Post.created_at:type_name -> google.protobuf.Timestamp
-	13, // 1: ahishka.post.v1.Post.updated_at:type_name -> google.protobuf.Timestamp
+	22, // 0: ahishka.post.v1.Post.created_at:type_name -> google.protobuf.Timestamp
+	22, // 1: ahishka.post.v1.Post.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: ahishka.post.v1.CreatePostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 3: ahishka.post.v1.GetPostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 4: ahishka.post.v1.GetFeedResponse.posts:type_name -> ahishka.post.v1.Post
 	0,  // 5: ahishka.post.v1.LikePostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 6: ahishka.post.v1.UnlikePostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 7: ahishka.post.v1.ListUserPostsResponse.posts:type_name -> ahishka.post.v1.Post
-	1,  // 8: ahishka.post.v1.PostService.CreatePost:input_type -> ahishka.post.v1.CreatePostRequest
-	3,  // 9: ahishka.post.v1.PostService.GetPost:input_type -> ahishka.post.v1.GetPostRequest
-	5,  // 10: ahishka.post.v1.PostService.GetFeed:input_type -> ahishka.post.v1.GetFeedRequest
-	11, // 11: ahishka.post.v1.PostService.ListUserPosts:input_type -> ahishka.post.v1.ListUserPostsRequest
-	7,  // 12: ahishka.post.v1.PostService.LikePost:input_type -> ahishka.post.v1.LikePostRequest
-	9,  // 13: ahishka.post.v1.PostService.UnlikePost:input_type -> ahishka.post.v1.UnlikePostRequest
-	2,  // 14: ahishka.post.v1.PostService.CreatePost:output_type -> ahishka.post.v1.CreatePostResponse
-	4,  // 15: ahishka.post.v1.PostService.GetPost:output_type -> ahishka.post.v1.GetPostResponse
-	6,  // 16: ahishka.post.v1.PostService.GetFeed:output_type -> ahishka.post.v1.GetFeedResponse
-	12, // 17: ahishka.post.v1.PostService.ListUserPosts:output_type -> ahishka.post.v1.ListUserPostsResponse
-	8,  // 18: ahishka.post.v1.PostService.LikePost:output_type -> ahishka.post.v1.LikePostResponse
-	10, // 19: ahishka.post.v1.PostService.UnlikePost:output_type -> ahishka.post.v1.UnlikePostResponse
-	14, // [14:20] is the sub-list for method output_type
-	8,  // [8:14] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	22, // 8: ahishka.post.v1.Comment.created_at:type_name -> google.protobuf.Timestamp
+	22, // 9: ahishka.post.v1.Comment.updated_at:type_name -> google.protobuf.Timestamp
+	13, // 10: ahishka.post.v1.ListCommentsResponse.comments:type_name -> ahishka.post.v1.Comment
+	13, // 11: ahishka.post.v1.CreateCommentResponse.comment:type_name -> ahishka.post.v1.Comment
+	13, // 12: ahishka.post.v1.LikeCommentResponse.comment:type_name -> ahishka.post.v1.Comment
+	13, // 13: ahishka.post.v1.UnlikeCommentResponse.comment:type_name -> ahishka.post.v1.Comment
+	1,  // 14: ahishka.post.v1.PostService.CreatePost:input_type -> ahishka.post.v1.CreatePostRequest
+	3,  // 15: ahishka.post.v1.PostService.GetPost:input_type -> ahishka.post.v1.GetPostRequest
+	5,  // 16: ahishka.post.v1.PostService.GetFeed:input_type -> ahishka.post.v1.GetFeedRequest
+	11, // 17: ahishka.post.v1.PostService.ListUserPosts:input_type -> ahishka.post.v1.ListUserPostsRequest
+	7,  // 18: ahishka.post.v1.PostService.LikePost:input_type -> ahishka.post.v1.LikePostRequest
+	9,  // 19: ahishka.post.v1.PostService.UnlikePost:input_type -> ahishka.post.v1.UnlikePostRequest
+	14, // 20: ahishka.post.v1.CommentService.ListComments:input_type -> ahishka.post.v1.ListCommentsRequest
+	16, // 21: ahishka.post.v1.CommentService.CreateComment:input_type -> ahishka.post.v1.CreateCommentRequest
+	18, // 22: ahishka.post.v1.CommentService.LikeComment:input_type -> ahishka.post.v1.LikeCommentRequest
+	20, // 23: ahishka.post.v1.CommentService.UnlikeComment:input_type -> ahishka.post.v1.UnlikeCommentRequest
+	2,  // 24: ahishka.post.v1.PostService.CreatePost:output_type -> ahishka.post.v1.CreatePostResponse
+	4,  // 25: ahishka.post.v1.PostService.GetPost:output_type -> ahishka.post.v1.GetPostResponse
+	6,  // 26: ahishka.post.v1.PostService.GetFeed:output_type -> ahishka.post.v1.GetFeedResponse
+	12, // 27: ahishka.post.v1.PostService.ListUserPosts:output_type -> ahishka.post.v1.ListUserPostsResponse
+	8,  // 28: ahishka.post.v1.PostService.LikePost:output_type -> ahishka.post.v1.LikePostResponse
+	10, // 29: ahishka.post.v1.PostService.UnlikePost:output_type -> ahishka.post.v1.UnlikePostResponse
+	15, // 30: ahishka.post.v1.CommentService.ListComments:output_type -> ahishka.post.v1.ListCommentsResponse
+	17, // 31: ahishka.post.v1.CommentService.CreateComment:output_type -> ahishka.post.v1.CreateCommentResponse
+	19, // 32: ahishka.post.v1.CommentService.LikeComment:output_type -> ahishka.post.v1.LikeCommentResponse
+	21, // 33: ahishka.post.v1.CommentService.UnlikeComment:output_type -> ahishka.post.v1.UnlikeCommentResponse
+	24, // [24:34] is the sub-list for method output_type
+	14, // [14:24] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_ahishka_post_v1_post_proto_init() }
@@ -819,9 +1379,9 @@ func file_ahishka_post_v1_post_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ahishka_post_v1_post_proto_rawDesc), len(file_ahishka_post_v1_post_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   22,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_ahishka_post_v1_post_proto_goTypes,
 		DependencyIndexes: file_ahishka_post_v1_post_proto_depIdxs,

@@ -30,6 +30,9 @@ func main() {
 			fx.Annotate(repository.NewPost, fx.As(new(domain.PostRepository))),
 			service.NewPostService,
 			postgrpc.NewPostHandler,
+			fx.Annotate(repository.NewComment, fx.As(new(domain.CommentRepository))),
+			service.NewCommentService,
+			postgrpc.NewCommentHandler,
 			postgrpc.NewServer,
 		),
 		fx.WithLogger(func(logger *slog.Logger) fxevent.Logger {
