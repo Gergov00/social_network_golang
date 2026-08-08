@@ -21,7 +21,7 @@ const me: UserDTO = { ...author, id: 'me-1', name: '', handle: 'u_me', verified:
 function post(over: Partial<PostDTO> = {}): PostDTO {
   return {
     id: 'p1', authorId: author.id, author, text: 'первый пост',
-    likes: 3, liked: false,
+    likes: 3, liked: false, comments: 0,
     createdAt: '2026-08-07T12:00:00Z', updatedAt: '2026-08-07T12:00:00Z',
     ...over,
   };
@@ -229,7 +229,9 @@ test('нереализованные действия видны, но неак�
   renderFeed();
   await screen.findByText('первый пост');
 
-  expect(screen.getByRole('button', { name: /комментировать/i })).toBeDisabled();
+  // Комментарии теперь работают: это ссылка на страницу поста со счётчиком,
+  // а не заглушка. Репост и закладки бэкенд по-прежнему не умеет.
+  expect(screen.getByRole('link', { name: /комментар/i })).toHaveAttribute('href', '/post/p1');
   expect(screen.getByRole('button', { name: /репост/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /закладк/i })).toBeDisabled();
 });

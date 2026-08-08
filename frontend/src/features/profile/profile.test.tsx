@@ -26,7 +26,7 @@ const author: UserDTO = {
 function post(over: Partial<PostDTO> = {}): PostDTO {
   return {
     id: 'p1', authorId: author.id, author, text: 'первый пост',
-    likes: 3, liked: false,
+    likes: 3, liked: false, comments: 0,
     createdAt: '2026-08-07T12:00:00Z', updatedAt: '2026-08-07T12:00:00Z',
     ...over,
   };
