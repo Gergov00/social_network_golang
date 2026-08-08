@@ -18,7 +18,7 @@ var _ domain.PostRepository = (*PostRepo)(nil)
 // selectPost — общая проекция поста. liked считается подзапросом EXISTS
 // относительно зрителя ($1 во всех запросах ниже), поэтому порядок
 // параметров везде начинается с viewerID.
-const selectPost = `SELECT p.id, p.author_id, p.text, p.likes_count, p.created_at, p.updated_at,
+const selectPost = `SELECT p.id, p.author_id, p.text, p.likes_count, p.comments_count, p.created_at, p.updated_at,
                            EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = p.id AND l.user_id = $1) AS liked
                     FROM posts p `
 
@@ -111,7 +111,7 @@ func scanPosts(rows pgx.Rows, limit int) ([]domain.Post, error) {
 	posts := make([]domain.Post, 0, limit)
 	for rows.Next() {
 		var post domain.Post
-		if err := rows.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount,
+		if err := rows.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount, &post.CommentsCount,
 			&post.CreatedAt, &post.UpdatedAt, &post.Liked); err != nil {
 			return nil, err
 		}
@@ -194,7 +194,7 @@ func (r *PostRepo) Unlike(ctx context.Context, postID, userID uuid.UUID) (*domai
 func scanPost(row pgx.Row) (*domain.Post, error) {
 	var post domain.Post
 
-	err := row.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount,
+	err := row.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount, &post.CommentsCount,
 		&post.CreatedAt, &post.UpdatedAt, &post.Liked)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
