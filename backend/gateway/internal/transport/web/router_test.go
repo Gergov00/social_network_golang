@@ -201,6 +201,8 @@ func TestPostRoutesRequireAuth(t *testing.T) {
 		{http.MethodGet, "/posts/" + id},
 		{http.MethodPost, "/posts/" + id + "/like"},
 		{http.MethodDelete, "/posts/" + id + "/like"},
+		{http.MethodGet, "/me/posts"},
+		{http.MethodGet, "/users/anya/posts"},
 	}
 
 	router := NewRouter(

@@ -34,6 +34,10 @@ func NewRouter(
 	mux.Handle("GET /posts/{id}", requireAuth(http.HandlerFunc(postHandler.Post)))
 	mux.Handle("POST /posts/{id}/like", requireAuth(http.HandlerFunc(postHandler.Like)))
 	mux.Handle("DELETE /posts/{id}/like", requireAuth(http.HandlerFunc(postHandler.Unlike)))
+	// Более специфичный паттерн, чем GET /users/{handle}: ServeMux (Go 1.22+)
+	// выбирает по специфичности, порядок регистрации значения не имеет.
+	mux.Handle("GET /me/posts", requireAuth(http.HandlerFunc(postHandler.MyPosts)))
+	mux.Handle("GET /users/{handle}/posts", requireAuth(http.HandlerFunc(postHandler.UserPosts)))
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})

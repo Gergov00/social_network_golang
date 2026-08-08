@@ -64,15 +64,99 @@ func (h *PostHandler) Feed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authors := h.hydrateAuthors(ctx, r, resp.GetPosts())
+	writePostPage(w, resp.GetPosts(), resp.GetNextCursor(), authors)
+}
 
-	// make, а не var: пустая лента обязана уехать как [], иначе фронт
-	// получит null и упадёт на posts.map(...).
-	posts := make([]postDTO, 0, len(resp.GetPosts()))
-	for _, post := range resp.GetPosts() {
-		posts = append(posts, toPostDTO(post, authors))
+// MyPosts — записи вызывающего. Автор берётся ТОЛЬКО из токена: query и тело
+// на то, чей это профиль, не влияют.
+func (h *PostHandler) MyPosts(w http.ResponseWriter, r *http.Request) {
+	id, ok := UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, r, http.StatusUnauthorized)
+		return
 	}
 
-	WriteJSON(w, http.StatusOK, feedResponse{Posts: posts, NextCursor: resp.GetNextCursor()})
+	limit, err := parseLimit(r.URL.Query().Get("limit"))
+	if err != nil {
+		WriteError(w, r, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(withCaller(r.Context(), id), upstreamTimeout)
+	defer cancel()
+
+	resp, err := h.posts.ListUserPosts(ctx, &postv1.ListUserPostsRequest{
+		AuthorId: id.String(),
+		Cursor:   r.URL.Query().Get("cursor"),
+		Limit:    limit,
+	})
+	if err != nil {
+		WriteGRPCError(w, r, err)
+		return
+	}
+
+	// Профиль автора добираем обычным путём: тут он неизвестен, а деградация
+	// до author: null допустима — как на ленте.
+	writePostPage(w, resp.GetPosts(), resp.GetNextCursor(), h.hydrateAuthors(ctx, r, resp.GetPosts()))
+}
+
+// UserPosts — записи чужого профиля. Два вызова подряд, и это не лишний
+// round-trip, а необходимость: post-service знает только id, а в адресе у нас
+// handle. В отличие от ленты, падение user-service здесь роняет запрос —
+// без разрешённого id спрашивать у post-service просто нечего.
+func (h *PostHandler) UserPosts(w http.ResponseWriter, r *http.Request) {
+	viewer, ok := UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, r, http.StatusUnauthorized)
+		return
+	}
+
+	handle := strings.TrimSpace(r.PathValue("handle"))
+	if handle == "" {
+		WriteError(w, r, http.StatusBadRequest)
+		return
+	}
+
+	limit, err := parseLimit(r.URL.Query().Get("limit"))
+	if err != nil {
+		WriteError(w, r, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(withCaller(r.Context(), viewer), upstreamTimeout)
+	defer cancel()
+
+	owner, err := h.users.GetUserByHandle(ctx, &userv1.GetUserByHandleRequest{Handle: handle})
+	if err != nil {
+		WriteGRPCError(w, r, err)
+		return
+	}
+	authorID := owner.GetUser().GetId()
+
+	resp, err := h.posts.ListUserPosts(ctx, &postv1.ListUserPostsRequest{
+		AuthorId: authorID,
+		Cursor:   r.URL.Query().Get("cursor"),
+		Limit:    limit,
+	})
+	if err != nil {
+		WriteGRPCError(w, r, err)
+		return
+	}
+
+	// Второй раз за профилем не ходим: автор у всех записей один и он уже
+	// у нас в руках.
+	authors := map[string]userDTO{authorID: toUserDTO(owner.GetUser())}
+	writePostPage(w, resp.GetPosts(), resp.GetNextCursor(), authors)
+}
+
+// writePostPage — общий вывод страницы постов. make, а не var: пустая
+// страница обязана уехать как [], иначе фронт падёт на posts.map(...).
+func writePostPage(w http.ResponseWriter, in []*postv1.Post, next string, authors map[string]userDTO) {
+	posts := make([]postDTO, 0, len(in))
+	for _, post := range in {
+		posts = append(posts, toPostDTO(post, authors))
+	}
+	WriteJSON(w, http.StatusOK, feedResponse{Posts: posts, NextCursor: next})
 }
 
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
