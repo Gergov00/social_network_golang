@@ -8,7 +8,7 @@ import react from '@vitejs/plugin-react';
 // refresh-cookie выставлена бэкендом с Path=/auth, и на /api/auth/refresh
 // браузер её просто не отправит — автологин молча сломается. Заодно dev
 // один в один повторяет прод, где статика раздаётся с того же origin.
-const apiPaths = ['/auth', '/me', '/users', '/feed', '/posts', '/health'];
+const apiPaths = ['/auth', '/me', '/users', '/feed', '/posts', '/comments', '/health'];
 
 export default defineConfig({
   plugins: [react()],

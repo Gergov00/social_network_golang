@@ -89,6 +89,7 @@ func TestRouterRecoveredPanicIsLoggedWithCorrectStatus(t *testing.T) {
 	router := NewRouter(
 		NewUserHandler(panickingUserClient{}),
 		NewPostHandler(&fakePostClient{}, &batchUserClient{}),
+		NewCommentHandler(&fakeCommentClient{}, &batchUserClient{}),
 		testAuthProxy(t),
 		auth.NewVerifier(routerTestSecret),
 		logger,
@@ -128,6 +129,7 @@ func TestHealthRouteReturnsOK(t *testing.T) {
 	router := NewRouter(
 		NewUserHandler(panickingUserClient{}),
 		NewPostHandler(&fakePostClient{}, &batchUserClient{}),
+		NewCommentHandler(&fakeCommentClient{}, &batchUserClient{}),
 		testAuthProxy(t),
 		auth.NewVerifier(routerTestSecret),
 		slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
@@ -168,6 +170,7 @@ func TestProtectedRoutesWithoutAuthorizationAreUnauthorized(t *testing.T) {
 			router := NewRouter(
 				NewUserHandler(panickingUserClient{}),
 				NewPostHandler(&fakePostClient{}, &batchUserClient{}),
+				NewCommentHandler(&fakeCommentClient{}, &batchUserClient{}),
 				testAuthProxy(t),
 				auth.NewVerifier(routerTestSecret),
 				slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),
@@ -201,11 +204,18 @@ func TestPostRoutesRequireAuth(t *testing.T) {
 		{http.MethodGet, "/posts/" + id},
 		{http.MethodPost, "/posts/" + id + "/like"},
 		{http.MethodDelete, "/posts/" + id + "/like"},
+		{http.MethodGet, "/me/posts"},
+		{http.MethodGet, "/users/anya/posts"},
+		{http.MethodGet, "/posts/" + id + "/comments"},
+		{http.MethodPost, "/posts/" + id + "/comments"},
+		{http.MethodPost, "/comments/" + id + "/like"},
+		{http.MethodDelete, "/comments/" + id + "/like"},
 	}
 
 	router := NewRouter(
 		NewUserHandler(&fakeUserClient{}),
 		NewPostHandler(&fakePostClient{}, &batchUserClient{}),
+		NewCommentHandler(&fakeCommentClient{}, &batchUserClient{}),
 		testAuthProxy(t),
 		auth.NewVerifier(routerTestSecret),
 		slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)),

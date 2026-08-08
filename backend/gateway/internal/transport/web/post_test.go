@@ -82,6 +82,17 @@ func (f *fakePostClient) UnlikePost(ctx context.Context, in *postv1.UnlikePostRe
 	return &postv1.UnlikePostResponse{Post: f.post}, nil
 }
 
+func (f *fakePostClient) ListUserPosts(ctx context.Context, in *postv1.ListUserPostsRequest, opts ...grpc.CallOption) (*postv1.ListUserPostsResponse, error) {
+	f.record(ctx, in)
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.feed == nil {
+		return &postv1.ListUserPostsResponse{}, nil
+	}
+	return &postv1.ListUserPostsResponse{Posts: f.feed.GetPosts(), NextCursor: f.feed.GetNextCursor()}, nil
+}
+
 // batchUserClient — расширение fakeUserClient (он объявлен в user_test.go)
 // на пакетный метод: считает вызовы и запоминает переданные id.
 type batchUserClient struct {
@@ -346,5 +357,103 @@ func TestPostNotFoundMapsTo404(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// Чьи записи отдавать на /me/posts, решает ТОЛЬКО токен. Query-параметр —
+// то, что клиент контролирует напрямую, и он обязан быть проигнорирован.
+func TestMyPostsTakesAuthorFromTokenOnly(t *testing.T) {
+	caller, other := uuid.New(), uuid.New()
+	posts := &fakePostClient{}
+	handler := NewPostHandler(posts, &batchUserClient{})
+
+	handler.MyPosts(httptest.NewRecorder(),
+		authed(t, http.MethodGet, "/me/posts?authorId="+other.String()+"&author_id="+other.String(), "", caller))
+
+	req, ok := posts.lastReq.(*postv1.ListUserPostsRequest)
+	if !ok {
+		t.Fatalf("в post-service уехал %T, want *postv1.ListUserPostsRequest", posts.lastReq)
+	}
+	if req.GetAuthorId() != caller.String() {
+		t.Errorf("author_id = %q, want %q (только из токена)", req.GetAuthorId(), caller)
+	}
+	if md := posts.lastMD.Get(grpcmeta.UserID); len(md) == 0 || md[0] != caller.String() {
+		t.Errorf("metadata = %v, want %v", md, caller)
+	}
+}
+
+// На чужом профиле автор и зритель РАЗНЫЕ. Если их склеить, лайки чужих
+// постов будут показаны как чужие «нравится» или наоборот — а посты и вовсе
+// окажутся своими.
+func TestUserPostsResolvesHandleAndKeepsViewer(t *testing.T) {
+	authorID := uuid.New()
+	viewer := uuid.New()
+	users := &batchUserClient{}
+	users.user = testUser(authorID)
+	posts := &fakePostClient{}
+	handler := NewPostHandler(posts, users)
+
+	req := authed(t, http.MethodGet, "/users/anya/posts", "", viewer)
+	req.SetPathValue("handle", "anya")
+	rec := httptest.NewRecorder()
+	handler.UserPosts(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	in, ok := posts.lastReq.(*postv1.ListUserPostsRequest)
+	if !ok {
+		t.Fatalf("в post-service уехал %T", posts.lastReq)
+	}
+	if in.GetAuthorId() != authorID.String() {
+		t.Errorf("author_id = %q, want %q (id, добытый по handle)", in.GetAuthorId(), authorID)
+	}
+	if md := posts.lastMD.Get(grpcmeta.UserID); len(md) == 0 || md[0] != viewer.String() {
+		t.Errorf("metadata = %v, want %v (зритель — из токена)", md, viewer)
+	}
+}
+
+// Профиля нет — 404, а не пустой список: «нет такого пользователя» и «у
+// пользователя нет записей» — разные ответы, и фронт рисует их по-разному.
+func TestUserPostsUnknownHandleIs404(t *testing.T) {
+	users := &batchUserClient{}
+	users.err = status.Error(codes.NotFound, "user not found")
+	handler := NewPostHandler(&fakePostClient{}, users)
+
+	req := authed(t, http.MethodGet, "/users/nobody/posts", "", uuid.New())
+	req.SetPathValue("handle", "nobody")
+	rec := httptest.NewRecorder()
+	handler.UserPosts(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// Пустой список записей обязан уехать как [], а не null: фронт делает
+// posts.map(...) ровно так же, как на ленте.
+func TestMyPostsEmptyIsArrayNotNull(t *testing.T) {
+	handler := NewPostHandler(&fakePostClient{}, &batchUserClient{})
+	rec := httptest.NewRecorder()
+
+	handler.MyPosts(rec, authed(t, http.MethodGet, "/me/posts", "", uuid.New()))
+
+	if !strings.Contains(rec.Body.String(), `"posts":[]`) {
+		t.Errorf("тело = %s, ожидался пустой массив posts", rec.Body.String())
+	}
+}
+
+func TestUserPostsRejectsBadLimit(t *testing.T) {
+	users := &batchUserClient{}
+	users.user = testUser(uuid.New())
+	handler := NewPostHandler(&fakePostClient{}, users)
+
+	req := authed(t, http.MethodGet, "/users/anya/posts?limit=abc", "", uuid.New())
+	req.SetPathValue("handle", "anya")
+	rec := httptest.NewRecorder()
+	handler.UserPosts(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
 	}
 }

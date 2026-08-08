@@ -16,11 +16,13 @@ import (
 // заготовленное, но и ЗАПОМИНАЕТ аргументы: половина проверок тут — про
 // то, что сервис попросил у репозитория, а не про то, что он вернул.
 type fakeRepo struct {
-	created  *domain.Post
-	feed     []domain.Post
-	gotLimit int
-	gotView  uuid.UUID
-	err      error
+	created   *domain.Post
+	feed      []domain.Post
+	gotLimit  int
+	gotView   uuid.UUID
+	gotAuthor uuid.UUID
+	gotCursor *domain.FeedCursor
+	err       error
 }
 
 func (f *fakeRepo) Create(ctx context.Context, post *domain.Post) error {
@@ -35,6 +37,20 @@ func (f *fakeRepo) GetByID(ctx context.Context, id, viewerID uuid.UUID) (*domain
 func (f *fakeRepo) ListFeed(ctx context.Context, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, error) {
 	f.gotLimit = limit
 	f.gotView = viewerID
+	if f.err != nil {
+		return nil, f.err
+	}
+	if len(f.feed) > limit {
+		return f.feed[:limit], nil
+	}
+	return f.feed, nil
+}
+
+func (f *fakeRepo) ListByAuthor(ctx context.Context, authorID, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, error) {
+	f.gotAuthor = authorID
+	f.gotView = viewerID
+	f.gotCursor = cursor
+	f.gotLimit = limit
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -183,5 +199,67 @@ func TestFeedPassesViewer(t *testing.T) {
 	}
 	if repo.gotView != viewer {
 		t.Errorf("репозиторий получил viewerID = %v, want %v", repo.gotView, viewer)
+	}
+}
+
+// Автор и зритель — РАЗНЫЕ параметры, и путать их нельзя: автор говорит,
+// чьи посты выбирать, зритель — чей лайк подсвечивать. Один аргумент на
+// оба места дал бы «на чужом профиле все посты не лайкнуты».
+func TestUserPostsPassesAuthorAndViewerSeparately(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewPostService(repo)
+	author, viewer := uuid.New(), uuid.New()
+
+	if _, _, err := svc.UserPosts(context.Background(), author, viewer, nil, 10); err != nil {
+		t.Fatalf("UserPosts(): %v", err)
+	}
+	if repo.gotAuthor != author {
+		t.Errorf("репозиторий получил authorID = %v, want %v", repo.gotAuthor, author)
+	}
+	if repo.gotView != viewer {
+		t.Errorf("репозиторий получил viewerID = %v, want %v", repo.gotView, viewer)
+	}
+}
+
+func TestUserPostsRequestsOneExtraAndTrims(t *testing.T) {
+	repo := &fakeRepo{feed: makeFeed(21)}
+	svc := NewPostService(repo)
+
+	posts, hasMore, err := svc.UserPosts(context.Background(), uuid.New(), uuid.New(), nil, 20)
+	if err != nil {
+		t.Fatalf("UserPosts(): %v", err)
+	}
+	if repo.gotLimit != 21 {
+		t.Errorf("репозиторий получил limit = %d, want 21 (limit+1 — так узнаём про «есть ещё»)", repo.gotLimit)
+	}
+	if len(posts) != 20 || !hasMore {
+		t.Errorf("UserPosts() = %d постов, hasMore = %v; want 20, true", len(posts), hasMore)
+	}
+}
+
+func TestUserPostsClampsLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit int
+		want  int
+	}{
+		{"ноль → дефолт", 0, DefaultFeedLimit + 1},
+		{"отрицательный → дефолт", -7, DefaultFeedLimit + 1},
+		{"выше потолка → потолок", 500, MaxFeedLimit + 1},
+		{"в пределах — как есть", 7, 8},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepo{}
+			svc := NewPostService(repo)
+
+			if _, _, err := svc.UserPosts(context.Background(), uuid.New(), uuid.New(), nil, tt.limit); err != nil {
+				t.Fatalf("UserPosts(): %v", err)
+			}
+			if repo.gotLimit != tt.want {
+				t.Errorf("репозиторий получил limit = %d, want %d", repo.gotLimit, tt.want)
+			}
+		})
 	}
 }

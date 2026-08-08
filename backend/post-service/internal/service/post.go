@@ -80,6 +80,23 @@ func (s *PostService) Feed(ctx context.Context, viewerID uuid.UUID, cursor *doma
 	return posts, hasMore, nil
 }
 
+// UserPosts — записи одного автора. Отличается от Feed ровно фильтром:
+// клампы, limit+1 и смысл hasMore те же самые.
+func (s *PostService) UserPosts(ctx context.Context, authorID, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, bool, error) {
+	limit = clampLimit(limit)
+
+	posts, err := s.repo.ListByAuthor(ctx, authorID, viewerID, cursor, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+
+	hasMore := len(posts) > limit
+	if hasMore {
+		posts = posts[:limit]
+	}
+	return posts, hasMore, nil
+}
+
 func (s *PostService) Like(ctx context.Context, postID, userID uuid.UUID) (*domain.Post, error) {
 	return s.repo.Like(ctx, postID, userID)
 }

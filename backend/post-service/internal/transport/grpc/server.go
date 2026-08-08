@@ -12,9 +12,10 @@ import (
 //
 // reflection нужен, чтобы grpcurl и подобные клиенты работали без раздачи
 // .proto файлов вручную.
-func NewServer(handler *PostHandler) *grpc.Server {
+func NewServer(posts *PostHandler, comments *CommentHandler) *grpc.Server {
 	srv := grpc.NewServer()
-	postv1.RegisterPostServiceServer(srv, handler)
+	postv1.RegisterPostServiceServer(srv, posts)
+	postv1.RegisterCommentServiceServer(srv, comments)
 	reflection.Register(srv)
 	return srv
 }

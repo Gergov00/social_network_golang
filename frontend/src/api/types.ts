@@ -23,6 +23,7 @@ export type PostDTO = {
   text: string;
   likes: number;
   liked: boolean;
+  comments: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -38,3 +39,22 @@ export type TokenResponse = { access_token: string };
 export type UpdateMePayload = Partial<
   Pick<UserDTO, 'name' | 'handle' | 'bio' | 'city' | 'work'>
 >;
+
+export type CommentDTO = {
+  id: string;
+  postId: string;
+  authorId: string;
+  // author === null — законное состояние, ровно как у PostDTO.
+  author: UserDTO | null;
+  text: string;
+  likes: number;
+  liked: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommentsPage = {
+  comments: CommentDTO[];
+  // Пустая строка означает «страниц больше нет».
+  nextCursor: string;
+};

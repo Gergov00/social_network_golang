@@ -31,9 +31,11 @@ func main() {
 			NewVerifier,
 			NewUserClient,
 			NewPostClient,
+			NewCommentClient,
 			NewAuthProxy,
 			web.NewUserHandler,
 			web.NewPostHandler,
+			web.NewCommentHandler,
 			web.NewRouter,
 		),
 		fx.WithLogger(func(logger *slog.Logger) fxevent.Logger {
@@ -94,6 +96,18 @@ func NewPostClient(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (po
 		return nil, err
 	}
 	return postv1.NewPostServiceClient(conn), nil
+}
+
+// CommentService живёт в том же post-service, но соединение поднимаем своё:
+// два fx-провайдера одного типа *grpc.ClientConn собрать нельзя (already
+// provided), поэтому каждый клиент дозванивается сам — тот же паттерн, что
+// у NewUserClient/NewPostClient.
+func NewCommentClient(lc fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (postv1.CommentServiceClient, error) {
+	conn, err := dial(lc, cfg.PostServiceAddr, "post-service (comments)", logger)
+	if err != nil {
+		return nil, err
+	}
+	return postv1.NewCommentServiceClient(conn), nil
 }
 
 func NewAuthProxy(cfg *config.Config) (*httputil.ReverseProxy, error) {

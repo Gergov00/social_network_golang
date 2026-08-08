@@ -6,6 +6,8 @@ import { Empty } from '../../ui/Empty';
 import { ErrorBox } from '../../ui/ErrorBox';
 import { Spinner } from '../../ui/Spinner';
 import { PostCard } from '../feed/PostCard';
+import { CommentComposer } from './CommentComposer';
+import { CommentList } from './CommentList';
 
 export function PostPage() {
   const { id = '' } = useParams();
@@ -28,8 +30,8 @@ export function PostPage() {
         {query.data && (
           <>
             <PostCard post={query.data} detail />
-            {/* Комментариев бэкенд пока не умеет. */}
-            <Empty title="Комментарии скоро" text="Их ещё не умеет бэкенд." />
+            <CommentComposer postId={id} />
+            <CommentList postId={id} />
           </>
         )}
       </div>

@@ -15,6 +15,10 @@ type PostRepository interface {
 	// ListFeed отдаёт ровно limit записей (или меньше, если лента
 	// кончилась). Про «есть ли ещё» решает вызывающий, запросив limit+1.
 	ListFeed(ctx context.Context, viewerID uuid.UUID, cursor *FeedCursor, limit int) ([]Post, error)
+	// ListByAuthor — та же keyset-пагинация, что и у ленты, но с фильтром по
+	// автору. authorID и viewerID разные не для красоты: первый выбирает
+	// строки, второй считает Liked. Совпадают они только на своём профиле.
+	ListByAuthor(ctx context.Context, authorID, viewerID uuid.UUID, cursor *FeedCursor, limit int) ([]Post, error)
 	// Like и Unlike идемпотентны и возвращают свежий пост: счётчик и флаг
 	// зрителя клиенту нужны одним ответом, вторым запросом их читать —
 	// гонка.

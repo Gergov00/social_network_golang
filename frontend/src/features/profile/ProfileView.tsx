@@ -3,6 +3,7 @@ import type { UserDTO } from '../../api/types';
 import { Avatar } from '../../ui/Avatar';
 import { Empty } from '../../ui/Empty';
 import { Icon } from '../../ui/Icons';
+import { UserPosts } from './UserPosts';
 
 type Props = { user: UserDTO; isMe: boolean; onEdit?: () => void };
 
@@ -62,7 +63,7 @@ export function ProfileView({ user, isMe, onEdit }: Props) {
         </div>
 
         {tab === 'posts' && (
-          <Empty title="Записи профиля пока не загружаются" text="Бэкенд ещё не умеет отдавать записи автора — они появятся здесь позже." />
+          <UserPosts owner={isMe ? { kind: 'me' } : { kind: 'handle', handle: user.handle }} />
         )}
         {tab === 'media' && <Empty title="Медиа нет" text="Загрузка файлов ещё не реализована." />}
         {tab === 'about' && (

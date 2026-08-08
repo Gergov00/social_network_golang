@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { expect, test } from 'vitest';
 import { server } from '../../test/server';
 import { Providers } from '../../app/providers';
 import { AppRouter } from '../../app/router';
-import type { UserDTO } from '../../api/types';
+import type { PostDTO, UserDTO } from '../../api/types';
 
 const me: UserDTO = {
   id: 'me-1', name: 'Аня Соколова', handle: 'anya',
@@ -13,6 +13,24 @@ const me: UserDTO = {
   verified: false, avatarUrl: null,
   createdAt: '2026-08-07T10:00:00Z', updatedAt: '2026-08-07T10:00:00Z',
 };
+
+// Отдельный от `me` пользователь для тестов чужого профиля: `me.handle` уже
+// занят 'anya', поэтому здесь — 'boris', не 'anya' из брифа задачи.
+const author: UserDTO = {
+  id: 'boris-1', name: 'Борис Орлов', handle: 'boris',
+  bio: '', city: '', work: '',
+  verified: true, avatarUrl: null,
+  createdAt: '2026-08-07T10:00:00Z', updatedAt: '2026-08-07T10:00:00Z',
+};
+
+function post(over: Partial<PostDTO> = {}): PostDTO {
+  return {
+    id: 'p1', authorId: author.id, author, text: 'первый пост',
+    likes: 3, liked: false, comments: 0,
+    createdAt: '2026-08-07T12:00:00Z', updatedAt: '2026-08-07T12:00:00Z',
+    ...over,
+  };
+}
 
 function authed() {
   return [
@@ -148,4 +166,73 @@ test('страница записи показывает пост', async () => 
   renderAt('/post/p1');
 
   expect(await screen.findByText('запись целиком')).toBeInTheDocument();
+});
+
+test('вкладка «Записи» на своём профиле грузит /me/posts', async () => {
+  server.use(
+    ...authed(),
+    http.get('/me/posts', () =>
+      HttpResponse.json({ posts: [post({ text: 'моя запись' })], nextCursor: '' }),
+    ),
+  );
+
+  renderAt('/me');
+
+  expect(await screen.findByText('моя запись')).toBeInTheDocument();
+});
+
+test('вкладка «Записи» на чужом профиле грузит /users/:handle/posts', async () => {
+  // Ходить на /me/posts с чужого профиля — самая вероятная ошибка тут:
+  // экран выглядел бы рабочим и показывал бы СВОИ записи под чужим именем.
+  server.use(
+    ...authed(),
+    http.get('/users/boris', () => HttpResponse.json(author)),
+    http.get('/users/boris/posts', () =>
+      HttpResponse.json({ posts: [post({ text: 'запись Бориса' })], nextCursor: '' }),
+    ),
+    http.get('/me/posts', () =>
+      HttpResponse.json({ posts: [post({ text: 'мои записи тут не место' })], nextCursor: '' }),
+    ),
+  );
+
+  renderAt('/u/boris');
+
+  expect(await screen.findByText('запись Бориса')).toBeInTheDocument();
+  expect(screen.queryByText('мои записи тут не место')).not.toBeInTheDocument();
+});
+
+test('пустой список записей показывает пустое состояние, а не спиннер навсегда', async () => {
+  server.use(
+    ...authed(),
+    http.get('/me/posts', () => HttpResponse.json({ posts: [], nextCursor: '' })),
+  );
+
+  renderAt('/me');
+
+  expect(await screen.findByText(/записей пока нет|пока пусто/i)).toBeInTheDocument();
+});
+
+test('лайк во вкладке «Записи» откатывается при ошибке сервера', async () => {
+  // Регрессия по конструкции: useLike патчил только кэш ленты (FEED_KEY).
+  // Список записей профиля живёт под другим ключом — без правки useLike
+  // счётчик тут не двигался бы вовсе, а после правки без отката — залипал бы.
+  server.use(
+    ...authed(),
+    http.get('/me/posts', () =>
+      HttpResponse.json({ posts: [post({ likes: 3, liked: false })], nextCursor: '' }),
+    ),
+    http.post('/posts/p1/like', async () => {
+      await delay(50);
+      return HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }),
+  );
+
+  renderAt('/me');
+
+  const likeButton = await screen.findByRole('button', { name: /нравится/i });
+  expect(likeButton).toHaveTextContent('3');
+
+  await userEvent.click(likeButton);
+  await waitFor(() => expect(likeButton).toHaveTextContent('4'));
+  await waitFor(() => expect(likeButton).toHaveTextContent('3'));
 });

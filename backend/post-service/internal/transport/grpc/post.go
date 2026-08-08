@@ -67,12 +67,9 @@ func (h *PostHandler) GetFeed(ctx context.Context, req *postv1.GetFeedRequest) (
 		return nil, err
 	}
 
-	var cursor *domain.FeedCursor
-	if raw := req.GetCursor(); raw != "" {
-		cursor, err = domain.ParseCursor(raw)
-		if err != nil {
-			return nil, mapError(err)
-		}
+	cursor, err := parseOptionalCursor(req.GetCursor())
+	if err != nil {
+		return nil, mapError(err)
 	}
 
 	posts, hasMore, err := h.svc.Feed(ctx, viewer, cursor, int(req.GetLimit()))
@@ -80,18 +77,59 @@ func (h *PostHandler) GetFeed(ctx context.Context, req *postv1.GetFeedRequest) (
 		return nil, mapError(err)
 	}
 
-	resp := &postv1.GetFeedResponse{Posts: make([]*postv1.Post, 0, len(posts))}
-	for i := range posts {
-		resp.Posts = append(resp.Posts, toProto(&posts[i]))
+	page, next := toPage(posts, hasMore)
+	return &postv1.GetFeedResponse{Posts: page, NextCursor: next}, nil
+}
+
+func (h *PostHandler) ListUserPosts(ctx context.Context, req *postv1.ListUserPostsRequest) (*postv1.ListUserPostsResponse, error) {
+	// Зритель — из metadata. Автор — из поля запроса: это фильтр «чьи посты»,
+	// а не личность вызывающего. Совпадают они только на своём профиле.
+	viewer, err := callerID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// Курсор указывает на последний ОТДАННЫЙ пост: следующая страница
-	// начнётся строго за ним. Пустой next_cursor = страниц больше нет.
-	if hasMore && len(posts) > 0 {
-		last := posts[len(posts)-1]
-		resp.NextCursor = domain.FeedCursor{CreatedAt: last.CreatedAt, ID: last.ID}.Encode()
+	author, err := uuid.Parse(req.GetAuthorId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "author_id must be a uuid")
 	}
-	return resp, nil
+
+	cursor, err := parseOptionalCursor(req.GetCursor())
+	if err != nil {
+		return nil, mapError(err)
+	}
+
+	posts, hasMore, err := h.svc.UserPosts(ctx, author, viewer, cursor, int(req.GetLimit()))
+	if err != nil {
+		return nil, mapError(err)
+	}
+
+	page, next := toPage(posts, hasMore)
+	return &postv1.ListUserPostsResponse{Posts: page, NextCursor: next}, nil
+}
+
+// parseOptionalCursor: пустая строка значит «с начала», а не «кривой курсор».
+func parseOptionalCursor(raw string) (*domain.FeedCursor, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	return domain.ParseCursor(raw)
+}
+
+// toPage строит страницу и курсор на неё. Курсор указывает на последний
+// ОТДАННЫЙ пост: следующая страница начнётся строго за ним. Пустой курсор =
+// страниц больше нет.
+func toPage(posts []domain.Post, hasMore bool) ([]*postv1.Post, string) {
+	page := make([]*postv1.Post, 0, len(posts))
+	for i := range posts {
+		page = append(page, toProto(&posts[i]))
+	}
+
+	if !hasMore || len(posts) == 0 {
+		return page, ""
+	}
+	last := posts[len(posts)-1]
+	return page, domain.FeedCursor{CreatedAt: last.CreatedAt, ID: last.ID}.Encode()
 }
 
 func (h *PostHandler) LikePost(ctx context.Context, req *postv1.LikePostRequest) (*postv1.LikePostResponse, error) {
@@ -132,10 +170,13 @@ func (h *PostHandler) UnlikePost(ctx context.Context, req *postv1.UnlikePostRequ
 
 // mapError переводит доменные ошибки в gRPC-коды. Наружу не отдаём текст
 // ошибки от БД — только фиксированные сообщения (как у user-service).
+// Общий на PostHandler и CommentHandler (см. comment.go): domain.ErrNotFound
+// сигнализирует и «нет такого поста», и «нет такого комментария» — текст
+// нейтральный, чтобы не вводить в заблуждение того, кто читает gRPC-логи.
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		return status.Error(codes.NotFound, "post not found")
+		return status.Error(codes.NotFound, "not found")
 	case errors.Is(err, domain.ErrInvalidCursor):
 		return status.Error(codes.InvalidArgument, "invalid cursor")
 	case errors.Is(err, domain.ErrEmptyText):
@@ -153,12 +194,13 @@ func mapError(err error) error {
 
 func toProto(post *domain.Post) *postv1.Post {
 	return &postv1.Post{
-		Id:         post.ID.String(),
-		AuthorId:   post.AuthorID.String(),
-		Text:       post.Text,
-		LikesCount: post.LikesCount,
-		Liked:      post.Liked,
-		CreatedAt:  timestamppb.New(post.CreatedAt),
-		UpdatedAt:  timestamppb.New(post.UpdatedAt),
+		Id:            post.ID.String(),
+		AuthorId:      post.AuthorID.String(),
+		Text:          post.Text,
+		LikesCount:    post.LikesCount,
+		CommentsCount: post.CommentsCount,
+		Liked:         post.Liked,
+		CreatedAt:     timestamppb.New(post.CreatedAt),
+		UpdatedAt:     timestamppb.New(post.UpdatedAt),
 	}
 }

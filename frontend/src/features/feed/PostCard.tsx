@@ -89,11 +89,24 @@ export function PostCard({ post, detail = false }: { post: PostDTO; detail?: boo
           <Icon name="heart" fill={post.liked} /> {post.likes}
         </button>
 
-        {/* Комментарии, репосты и закладки бэкенд не умеет. Кнопки на месте,
-            но неактивны: интерфейс не должен обещать несуществующего. */}
-        <button className="iact" type="button" aria-label="Комментировать" disabled title="Скоро">
-          <Icon name="comment" />
-        </button>
+        {/* Комментарии работают: в ленте это ссылка на страницу записи со
+            счётчиком, в detail-режиме — просто счётчик (мы уже здесь).
+            Репост и закладки бэкенд по-прежнему не умеет. */}
+        {detail ? (
+          // Голый <span> имеет неявную role="generic", а ARIA запрещает
+          // именовать generic-элементы — aria-label на нём молча
+          // игнорировался бы вспомогательными технологиями. role="group" —
+          // именуемая, некликабельная роль: сохраняет то же поведение
+          // (не кнопка, не ссылка — мы уже на странице записи), но
+          // возвращает aria-label в доступное имя.
+          <span className="iact" role="group" aria-label="Комментарии">
+            <Icon name="comment" /> {post.comments}
+          </span>
+        ) : (
+          <Link className="iact" to={`/post/${post.id}`} aria-label="Комментарии">
+            <Icon name="comment" /> {post.comments}
+          </Link>
+        )}
         <button className="iact" type="button" aria-label="Репост" disabled title="Скоро">
           <Icon name="share" />
         </button>

@@ -18,7 +18,7 @@ var _ domain.PostRepository = (*PostRepo)(nil)
 // selectPost — общая проекция поста. liked считается подзапросом EXISTS
 // относительно зрителя ($1 во всех запросах ниже), поэтому порядок
 // параметров везде начинается с viewerID.
-const selectPost = `SELECT p.id, p.author_id, p.text, p.likes_count, p.created_at, p.updated_at,
+const selectPost = `SELECT p.id, p.author_id, p.text, p.likes_count, p.comments_count, p.created_at, p.updated_at,
                            EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = p.id AND l.user_id = $1) AS liked
                     FROM posts p `
 
@@ -73,12 +73,45 @@ func (r *PostRepo) ListFeed(ctx context.Context, viewerID uuid.UUID, cursor *dom
 	if err != nil {
 		return nil, err
 	}
+	return scanPosts(rows, limit)
+}
+
+// ListByAuthor — лента одного автора. Условие по author_id идёт ПЕРВЫМ, под
+// индекс posts_author_idx (author_id, created_at DESC, id DESC): сначала
+// равенство, потом ключ сортировки.
+func (r *PostRepo) ListByAuthor(ctx context.Context, authorID, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, error) {
+	var (
+		rows pgx.Rows
+		err  error
+	)
+
+	if cursor == nil {
+		rows, err = r.pool.Query(ctx,
+			selectPost+`WHERE p.author_id = $2
+			            ORDER BY p.created_at DESC, p.id DESC LIMIT $3`,
+			viewerID, authorID, limit)
+	} else {
+		rows, err = r.pool.Query(ctx,
+			selectPost+`WHERE p.author_id = $2 AND (p.created_at, p.id) < ($3, $4)
+			            ORDER BY p.created_at DESC, p.id DESC LIMIT $5`,
+			viewerID, authorID, cursor.CreatedAt, cursor.ID, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return scanPosts(rows, limit)
+}
+
+// scanPosts — общий разбор выборки постов. Вынесен, потому что проекция
+// selectPost одна на все списки: разъехавшийся порядок Scan в двух копиях
+// ловился бы только в рантайме.
+func scanPosts(rows pgx.Rows, limit int) ([]domain.Post, error) {
 	defer rows.Close()
 
 	posts := make([]domain.Post, 0, limit)
 	for rows.Next() {
 		var post domain.Post
-		if err := rows.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount,
+		if err := rows.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount, &post.CommentsCount,
 			&post.CreatedAt, &post.UpdatedAt, &post.Liked); err != nil {
 			return nil, err
 		}
@@ -161,7 +194,7 @@ func (r *PostRepo) Unlike(ctx context.Context, postID, userID uuid.UUID) (*domai
 func scanPost(row pgx.Row) (*domain.Post, error) {
 	var post domain.Post
 
-	err := row.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount,
+	err := row.Scan(&post.ID, &post.AuthorID, &post.Text, &post.LikesCount, &post.CommentsCount,
 		&post.CreatedAt, &post.UpdatedAt, &post.Liked)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

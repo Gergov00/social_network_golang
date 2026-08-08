@@ -1,11 +1,22 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type Query } from '@tanstack/react-query';
 import { postsApi } from '../../api/posts';
 import type { FeedPage, PostDTO } from '../../api/types';
 import { FEED_KEY } from './useFeed';
+import { USER_POSTS_KEY } from '../profile/useUserPosts';
 
-type FeedCache = { pages: FeedPage[]; pageParams: unknown[] };
+export type ListCache = { pages: FeedPage[]; pageParams: unknown[] };
 
-function patchCache(cache: FeedCache | undefined, id: string, patch: Partial<PostDTO>) {
+// Один пост живёт сразу в нескольких кэшах: лента, вкладка «Записи» своего
+// профиля, вкладка «Записи» чужого. Патчить только ленту — значит оставить
+// в остальных списках устаревший счётчик до перезагрузки страницы.
+// Экспортируется: useComments.ts переиспользует его для синхронизации
+// счётчика комментариев по той же причине.
+export const listFilter = {
+  predicate: (query: Query) =>
+    query.queryKey[0] === FEED_KEY[0] || query.queryKey[0] === USER_POSTS_KEY,
+};
+
+export function patchList(cache: ListCache | undefined, id: string, patch: Partial<PostDTO>) {
   if (!cache) return cache;
   return {
     ...cache,
@@ -14,6 +25,10 @@ function patchCache(cache: FeedCache | undefined, id: string, patch: Partial<Pos
       posts: page.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     })),
   };
+}
+
+function findPost(cache: ListCache | undefined, id: string): PostDTO | undefined {
+  return cache?.pages.flatMap((page) => page.posts).find((p) => p.id === id);
 }
 
 export function useLike() {
@@ -25,19 +40,18 @@ export function useLike() {
 
     // Оптимистично: счётчик двигается сразу, до ответа сервера.
     onMutate: async ({ id, liked }) => {
-      // Обе кэш-записи патчатся ниже — обе и отменяем, иначе фоновый рефетч
-      // страницы поста может перезаписать оптимистичное значение прямо
-      // посреди мутации.
-      await queryClient.cancelQueries({ queryKey: FEED_KEY });
+      // Отменяем ВСЁ, что патчим ниже, иначе фоновый рефетч перезапишет
+      // оптимистичное значение прямо посреди мутации.
+      await queryClient.cancelQueries(listFilter);
       await queryClient.cancelQueries({ queryKey: ['post', id] });
 
-      const feedSnapshot = queryClient.getQueryData<FeedCache>(FEED_KEY);
+      const listSnapshots = queryClient.getQueriesData<ListCache>(listFilter);
       const postSnapshot = queryClient.getQueryData<PostDTO>(['post', id]);
 
-      queryClient.setQueryData<FeedCache>(FEED_KEY, (old) => {
-        const current = old?.pages.flatMap((p) => p.posts).find((p) => p.id === id);
+      queryClient.setQueriesData<ListCache>(listFilter, (old) => {
+        const current = findPost(old, id);
         if (!current) return old;
-        return patchCache(old, id, {
+        return patchList(old, id, {
           liked: !liked,
           likes: current.likes + (liked ? -1 : 1),
         });
@@ -47,23 +61,21 @@ export function useLike() {
         old ? { ...old, liked: !liked, likes: old.likes + (liked ? -1 : 1) } : old,
       );
 
-      return { feedSnapshot, postSnapshot };
+      return { listSnapshots, postSnapshot };
     },
 
     // Откат: без него неудачный лайк оставит на экране число, которого нет
     // в базе, и пользователь узнает об этом только после перезагрузки.
-    // Откатываем обе кэш-записи — страницу поста тоже, не только ленту,
-    // иначе там залипнет оптимистичное значение навсегда.
     onError: (_err, { id }, context) => {
-      if (context?.feedSnapshot) queryClient.setQueryData(FEED_KEY, context.feedSnapshot);
+      context?.listSnapshots.forEach(([key, data]) => queryClient.setQueryData(key, data));
       if (context?.postSnapshot) queryClient.setQueryData(['post', id], context.postSnapshot);
     },
 
     // Сервер вернул пост целиком — берём его числа как истину в последней
     // инстанции: параллельные лайки других людей наш +1 не учитывал.
     onSuccess: (fresh) => {
-      queryClient.setQueryData<FeedCache>(FEED_KEY, (old) =>
-        patchCache(old, fresh.id, { liked: fresh.liked, likes: fresh.likes }),
+      queryClient.setQueriesData<ListCache>(listFilter, (old) =>
+        patchList(old, fresh.id, { liked: fresh.liked, likes: fresh.likes }),
       );
       queryClient.setQueryData(['post', fresh.id], fresh);
     },

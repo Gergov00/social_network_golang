@@ -20,4 +20,16 @@ export const postsApi = {
 
   unlikePost: (id: string) =>
     apiFetch<PostDTO>(`/posts/${encodeURIComponent(id)}/like`, { method: 'DELETE' }),
+
+  getMyPosts: (cursor?: string) => {
+    const params = new URLSearchParams({ limit: String(FEED_LIMIT) });
+    if (cursor) params.set('cursor', cursor);
+    return apiFetch<FeedPage>(`/me/posts?${params.toString()}`);
+  },
+
+  getUserPosts: (handle: string, cursor?: string) => {
+    const params = new URLSearchParams({ limit: String(FEED_LIMIT) });
+    if (cursor) params.set('cursor', cursor);
+    return apiFetch<FeedPage>(`/users/${encodeURIComponent(handle)}/posts?${params.toString()}`);
+  },
 };
