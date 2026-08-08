@@ -152,6 +152,7 @@ func TestContractHasNoCallerFields(t *testing.T) {
 		&postv1.GetFeedRequest{},
 		&postv1.LikePostRequest{},
 		&postv1.UnlikePostRequest{},
+		&postv1.ListUserPostsRequest{},
 		&postv1.ListCommentsRequest{},
 		&postv1.CreateCommentRequest{},
 		&postv1.LikeCommentRequest{},
@@ -159,6 +160,11 @@ func TestContractHasNoCallerFields(t *testing.T) {
 	}
 
 	forbidden := []string{"author", "user", "viewer", "caller", "actor"}
+
+	// author_id на ListUserPostsRequest — ФИЛЬТР («чьи посты показать»), а не
+	// личность вызывающего: это единственное разрешённое исключение. Все
+	// остальные поля этого сообщения стерегутся как везде.
+	allowed := map[string]string{"ListUserPostsRequest": "author_id"}
 
 	for _, msg := range messages {
 		desc := msg.ProtoReflect().Descriptor()
@@ -170,6 +176,11 @@ func TestContractHasNoCallerFields(t *testing.T) {
 			// регистрозависим — без ToLower застрахованное имя в другом
 			// регистре молча проскочило бы мимо стража.
 			name := strings.ToLower(string(fields.Get(i).Name()))
+
+			if allowed[string(desc.Name())] == string(fields.Get(i).Name()) {
+				continue
+			}
+
 			for _, bad := range forbidden {
 				if strings.Contains(name, bad) {
 					t.Errorf("%s содержит поле %q: личность вызывающего должна приходить только в metadata %q",

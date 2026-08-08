@@ -170,10 +170,13 @@ func (h *PostHandler) UnlikePost(ctx context.Context, req *postv1.UnlikePostRequ
 
 // mapError переводит доменные ошибки в gRPC-коды. Наружу не отдаём текст
 // ошибки от БД — только фиксированные сообщения (как у user-service).
+// Общий на PostHandler и CommentHandler (см. comment.go): domain.ErrNotFound
+// сигнализирует и «нет такого поста», и «нет такого комментария» — текст
+// нейтральный, чтобы не вводить в заблуждение того, кто читает gRPC-логи.
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		return status.Error(codes.NotFound, "post not found")
+		return status.Error(codes.NotFound, "not found")
 	case errors.Is(err, domain.ErrInvalidCursor):
 		return status.Error(codes.InvalidArgument, "invalid cursor")
 	case errors.Is(err, domain.ErrEmptyText):

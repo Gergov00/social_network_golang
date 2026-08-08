@@ -27,6 +27,11 @@ type Comment struct {
 type CommentRepository interface {
 	// Create вставляет комментарий и двигает posts.comments_count в ОДНОЙ
 	// транзакции. Комментарий к несуществующему посту — ErrNotFound.
+	// Инвариант: если появится удаление комментария, оно ОБЯЗАНО декрементить
+	// posts.comments_count в той же транзакции, что и DELETE — симметрично
+	// этому Create. Сегодня это не нужно: удалить можно только весь пост
+	// (comments.post_id ... ON DELETE CASCADE в миграции уносит счётчик
+	// вместе с постом), эндпоинта удаления одного комментария ещё нет.
 	Create(ctx context.Context, comment *Comment) error
 	// ListByPost отдаёт страницу ПО ВОЗРАСТАНИЮ created_at: обсуждение
 	// читается сверху вниз, в отличие от ленты. Про «есть ли ещё» решает
