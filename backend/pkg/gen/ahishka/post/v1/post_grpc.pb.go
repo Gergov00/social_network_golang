@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PostService_CreatePost_FullMethodName = "/ahishka.post.v1.PostService/CreatePost"
-	PostService_GetPost_FullMethodName    = "/ahishka.post.v1.PostService/GetPost"
-	PostService_GetFeed_FullMethodName    = "/ahishka.post.v1.PostService/GetFeed"
-	PostService_LikePost_FullMethodName   = "/ahishka.post.v1.PostService/LikePost"
-	PostService_UnlikePost_FullMethodName = "/ahishka.post.v1.PostService/UnlikePost"
+	PostService_CreatePost_FullMethodName    = "/ahishka.post.v1.PostService/CreatePost"
+	PostService_GetPost_FullMethodName       = "/ahishka.post.v1.PostService/GetPost"
+	PostService_GetFeed_FullMethodName       = "/ahishka.post.v1.PostService/GetFeed"
+	PostService_ListUserPosts_FullMethodName = "/ahishka.post.v1.PostService/ListUserPosts"
+	PostService_LikePost_FullMethodName      = "/ahishka.post.v1.PostService/LikePost"
+	PostService_UnlikePost_FullMethodName    = "/ahishka.post.v1.PostService/UnlikePost"
 )
 
 // PostServiceClient is the client API for PostService service.
@@ -41,6 +42,7 @@ type PostServiceClient interface {
 	CreatePost(ctx context.Context, in *CreatePostRequest, opts ...grpc.CallOption) (*CreatePostResponse, error)
 	GetPost(ctx context.Context, in *GetPostRequest, opts ...grpc.CallOption) (*GetPostResponse, error)
 	GetFeed(ctx context.Context, in *GetFeedRequest, opts ...grpc.CallOption) (*GetFeedResponse, error)
+	ListUserPosts(ctx context.Context, in *ListUserPostsRequest, opts ...grpc.CallOption) (*ListUserPostsResponse, error)
 	LikePost(ctx context.Context, in *LikePostRequest, opts ...grpc.CallOption) (*LikePostResponse, error)
 	UnlikePost(ctx context.Context, in *UnlikePostRequest, opts ...grpc.CallOption) (*UnlikePostResponse, error)
 }
@@ -83,6 +85,16 @@ func (c *postServiceClient) GetFeed(ctx context.Context, in *GetFeedRequest, opt
 	return out, nil
 }
 
+func (c *postServiceClient) ListUserPosts(ctx context.Context, in *ListUserPostsRequest, opts ...grpc.CallOption) (*ListUserPostsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserPostsResponse)
+	err := c.cc.Invoke(ctx, PostService_ListUserPosts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *postServiceClient) LikePost(ctx context.Context, in *LikePostRequest, opts ...grpc.CallOption) (*LikePostResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LikePostResponse)
@@ -118,6 +130,7 @@ type PostServiceServer interface {
 	CreatePost(context.Context, *CreatePostRequest) (*CreatePostResponse, error)
 	GetPost(context.Context, *GetPostRequest) (*GetPostResponse, error)
 	GetFeed(context.Context, *GetFeedRequest) (*GetFeedResponse, error)
+	ListUserPosts(context.Context, *ListUserPostsRequest) (*ListUserPostsResponse, error)
 	LikePost(context.Context, *LikePostRequest) (*LikePostResponse, error)
 	UnlikePost(context.Context, *UnlikePostRequest) (*UnlikePostResponse, error)
 	mustEmbedUnimplementedPostServiceServer()
@@ -138,6 +151,9 @@ func (UnimplementedPostServiceServer) GetPost(context.Context, *GetPostRequest) 
 }
 func (UnimplementedPostServiceServer) GetFeed(context.Context, *GetFeedRequest) (*GetFeedResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFeed not implemented")
+}
+func (UnimplementedPostServiceServer) ListUserPosts(context.Context, *ListUserPostsRequest) (*ListUserPostsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserPosts not implemented")
 }
 func (UnimplementedPostServiceServer) LikePost(context.Context, *LikePostRequest) (*LikePostResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LikePost not implemented")
@@ -220,6 +236,24 @@ func _PostService_GetFeed_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PostService_ListUserPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserPostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PostServiceServer).ListUserPosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PostService_ListUserPosts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PostServiceServer).ListUserPosts(ctx, req.(*ListUserPostsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PostService_LikePost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LikePostRequest)
 	if err := dec(in); err != nil {
@@ -274,6 +308,10 @@ var PostService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFeed",
 			Handler:    _PostService_GetFeed_Handler,
+		},
+		{
+			MethodName: "ListUserPosts",
+			Handler:    _PostService_ListUserPosts_Handler,
 		},
 		{
 			MethodName: "LikePost",

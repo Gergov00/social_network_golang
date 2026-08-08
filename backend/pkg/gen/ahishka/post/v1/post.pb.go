@@ -578,6 +578,122 @@ func (x *UnlikePostResponse) GetPost() *Post {
 	return nil
 }
 
+// author_id тут — ФИЛЬТР «чьи посты показать», а не «кто пришёл». Это
+// по-прежнему вопрос «про что», и заголовочное правило файла он не нарушает:
+// личность зрителя (от неё зависит liked) едет только в metadata x-user-id.
+// Если когда-нибудь захочется вычислить автора из этого поля — нельзя.
+type ListUserPostsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AuthorId      string                 `protobuf:"bytes,1,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUserPostsRequest) Reset() {
+	*x = ListUserPostsRequest{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUserPostsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserPostsRequest) ProtoMessage() {}
+
+func (x *ListUserPostsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserPostsRequest.ProtoReflect.Descriptor instead.
+func (*ListUserPostsRequest) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListUserPostsRequest) GetAuthorId() string {
+	if x != nil {
+		return x.AuthorId
+	}
+	return ""
+}
+
+func (x *ListUserPostsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *ListUserPostsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListUserPostsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Posts         []*Post                `protobuf:"bytes,1,rep,name=posts,proto3" json:"posts,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUserPostsResponse) Reset() {
+	*x = ListUserPostsResponse{}
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUserPostsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserPostsResponse) ProtoMessage() {}
+
+func (x *ListUserPostsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahishka_post_v1_post_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserPostsResponse.ProtoReflect.Descriptor instead.
+func (*ListUserPostsResponse) Descriptor() ([]byte, []int) {
+	return file_ahishka_post_v1_post_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListUserPostsResponse) GetPosts() []*Post {
+	if x != nil {
+		return x.Posts
+	}
+	return nil
+}
+
+func (x *ListUserPostsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
 var File_ahishka_post_v1_post_proto protoreflect.FileDescriptor
 
 const file_ahishka_post_v1_post_proto_rawDesc = "" +
@@ -616,12 +732,21 @@ const file_ahishka_post_v1_post_proto_rawDesc = "" +
 	"\x11UnlikePostRequest\x12\x17\n" +
 	"\apost_id\x18\x01 \x01(\tR\x06postId\"?\n" +
 	"\x12UnlikePostResponse\x12)\n" +
-	"\x04post\x18\x01 \x01(\v2\x15.ahishka.post.v1.PostR\x04post2\xa8\x03\n" +
+	"\x04post\x18\x01 \x01(\v2\x15.ahishka.post.v1.PostR\x04post\"a\n" +
+	"\x14ListUserPostsRequest\x12\x1b\n" +
+	"\tauthor_id\x18\x01 \x01(\tR\bauthorId\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"e\n" +
+	"\x15ListUserPostsResponse\x12+\n" +
+	"\x05posts\x18\x01 \x03(\v2\x15.ahishka.post.v1.PostR\x05posts\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor2\x88\x04\n" +
 	"\vPostService\x12U\n" +
 	"\n" +
 	"CreatePost\x12\".ahishka.post.v1.CreatePostRequest\x1a#.ahishka.post.v1.CreatePostResponse\x12L\n" +
 	"\aGetPost\x12\x1f.ahishka.post.v1.GetPostRequest\x1a .ahishka.post.v1.GetPostResponse\x12L\n" +
-	"\aGetFeed\x12\x1f.ahishka.post.v1.GetFeedRequest\x1a .ahishka.post.v1.GetFeedResponse\x12O\n" +
+	"\aGetFeed\x12\x1f.ahishka.post.v1.GetFeedRequest\x1a .ahishka.post.v1.GetFeedResponse\x12^\n" +
+	"\rListUserPosts\x12%.ahishka.post.v1.ListUserPostsRequest\x1a&.ahishka.post.v1.ListUserPostsResponse\x12O\n" +
 	"\bLikePost\x12 .ahishka.post.v1.LikePostRequest\x1a!.ahishka.post.v1.LikePostResponse\x12U\n" +
 	"\n" +
 	"UnlikePost\x12\".ahishka.post.v1.UnlikePostRequest\x1a#.ahishka.post.v1.UnlikePostResponseB(Z&ahishka/pkg/gen/ahishka/post/v1;postv1b\x06proto3"
@@ -638,7 +763,7 @@ func file_ahishka_post_v1_post_proto_rawDescGZIP() []byte {
 	return file_ahishka_post_v1_post_proto_rawDescData
 }
 
-var file_ahishka_post_v1_post_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_ahishka_post_v1_post_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_ahishka_post_v1_post_proto_goTypes = []any{
 	(*Post)(nil),                  // 0: ahishka.post.v1.Post
 	(*CreatePostRequest)(nil),     // 1: ahishka.post.v1.CreatePostRequest
@@ -651,31 +776,36 @@ var file_ahishka_post_v1_post_proto_goTypes = []any{
 	(*LikePostResponse)(nil),      // 8: ahishka.post.v1.LikePostResponse
 	(*UnlikePostRequest)(nil),     // 9: ahishka.post.v1.UnlikePostRequest
 	(*UnlikePostResponse)(nil),    // 10: ahishka.post.v1.UnlikePostResponse
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*ListUserPostsRequest)(nil),  // 11: ahishka.post.v1.ListUserPostsRequest
+	(*ListUserPostsResponse)(nil), // 12: ahishka.post.v1.ListUserPostsResponse
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_ahishka_post_v1_post_proto_depIdxs = []int32{
-	11, // 0: ahishka.post.v1.Post.created_at:type_name -> google.protobuf.Timestamp
-	11, // 1: ahishka.post.v1.Post.updated_at:type_name -> google.protobuf.Timestamp
+	13, // 0: ahishka.post.v1.Post.created_at:type_name -> google.protobuf.Timestamp
+	13, // 1: ahishka.post.v1.Post.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: ahishka.post.v1.CreatePostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 3: ahishka.post.v1.GetPostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 4: ahishka.post.v1.GetFeedResponse.posts:type_name -> ahishka.post.v1.Post
 	0,  // 5: ahishka.post.v1.LikePostResponse.post:type_name -> ahishka.post.v1.Post
 	0,  // 6: ahishka.post.v1.UnlikePostResponse.post:type_name -> ahishka.post.v1.Post
-	1,  // 7: ahishka.post.v1.PostService.CreatePost:input_type -> ahishka.post.v1.CreatePostRequest
-	3,  // 8: ahishka.post.v1.PostService.GetPost:input_type -> ahishka.post.v1.GetPostRequest
-	5,  // 9: ahishka.post.v1.PostService.GetFeed:input_type -> ahishka.post.v1.GetFeedRequest
-	7,  // 10: ahishka.post.v1.PostService.LikePost:input_type -> ahishka.post.v1.LikePostRequest
-	9,  // 11: ahishka.post.v1.PostService.UnlikePost:input_type -> ahishka.post.v1.UnlikePostRequest
-	2,  // 12: ahishka.post.v1.PostService.CreatePost:output_type -> ahishka.post.v1.CreatePostResponse
-	4,  // 13: ahishka.post.v1.PostService.GetPost:output_type -> ahishka.post.v1.GetPostResponse
-	6,  // 14: ahishka.post.v1.PostService.GetFeed:output_type -> ahishka.post.v1.GetFeedResponse
-	8,  // 15: ahishka.post.v1.PostService.LikePost:output_type -> ahishka.post.v1.LikePostResponse
-	10, // 16: ahishka.post.v1.PostService.UnlikePost:output_type -> ahishka.post.v1.UnlikePostResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	0,  // 7: ahishka.post.v1.ListUserPostsResponse.posts:type_name -> ahishka.post.v1.Post
+	1,  // 8: ahishka.post.v1.PostService.CreatePost:input_type -> ahishka.post.v1.CreatePostRequest
+	3,  // 9: ahishka.post.v1.PostService.GetPost:input_type -> ahishka.post.v1.GetPostRequest
+	5,  // 10: ahishka.post.v1.PostService.GetFeed:input_type -> ahishka.post.v1.GetFeedRequest
+	11, // 11: ahishka.post.v1.PostService.ListUserPosts:input_type -> ahishka.post.v1.ListUserPostsRequest
+	7,  // 12: ahishka.post.v1.PostService.LikePost:input_type -> ahishka.post.v1.LikePostRequest
+	9,  // 13: ahishka.post.v1.PostService.UnlikePost:input_type -> ahishka.post.v1.UnlikePostRequest
+	2,  // 14: ahishka.post.v1.PostService.CreatePost:output_type -> ahishka.post.v1.CreatePostResponse
+	4,  // 15: ahishka.post.v1.PostService.GetPost:output_type -> ahishka.post.v1.GetPostResponse
+	6,  // 16: ahishka.post.v1.PostService.GetFeed:output_type -> ahishka.post.v1.GetFeedResponse
+	12, // 17: ahishka.post.v1.PostService.ListUserPosts:output_type -> ahishka.post.v1.ListUserPostsResponse
+	8,  // 18: ahishka.post.v1.PostService.LikePost:output_type -> ahishka.post.v1.LikePostResponse
+	10, // 19: ahishka.post.v1.PostService.UnlikePost:output_type -> ahishka.post.v1.UnlikePostResponse
+	14, // [14:20] is the sub-list for method output_type
+	8,  // [8:14] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_ahishka_post_v1_post_proto_init() }
@@ -689,7 +819,7 @@ func file_ahishka_post_v1_post_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ahishka_post_v1_post_proto_rawDesc), len(file_ahishka_post_v1_post_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

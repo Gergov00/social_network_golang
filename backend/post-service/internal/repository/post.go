@@ -73,6 +73,39 @@ func (r *PostRepo) ListFeed(ctx context.Context, viewerID uuid.UUID, cursor *dom
 	if err != nil {
 		return nil, err
 	}
+	return scanPosts(rows, limit)
+}
+
+// ListByAuthor — лента одного автора. Условие по author_id идёт ПЕРВЫМ, под
+// индекс posts_author_idx (author_id, created_at DESC, id DESC): сначала
+// равенство, потом ключ сортировки.
+func (r *PostRepo) ListByAuthor(ctx context.Context, authorID, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, error) {
+	var (
+		rows pgx.Rows
+		err  error
+	)
+
+	if cursor == nil {
+		rows, err = r.pool.Query(ctx,
+			selectPost+`WHERE p.author_id = $2
+			            ORDER BY p.created_at DESC, p.id DESC LIMIT $3`,
+			viewerID, authorID, limit)
+	} else {
+		rows, err = r.pool.Query(ctx,
+			selectPost+`WHERE p.author_id = $2 AND (p.created_at, p.id) < ($3, $4)
+			            ORDER BY p.created_at DESC, p.id DESC LIMIT $5`,
+			viewerID, authorID, cursor.CreatedAt, cursor.ID, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return scanPosts(rows, limit)
+}
+
+// scanPosts — общий разбор выборки постов. Вынесен, потому что проекция
+// selectPost одна на все списки: разъехавшийся порядок Scan в двух копиях
+// ловился бы только в рантайме.
+func scanPosts(rows pgx.Rows, limit int) ([]domain.Post, error) {
 	defer rows.Close()
 
 	posts := make([]domain.Post, 0, limit)

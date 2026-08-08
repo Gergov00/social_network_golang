@@ -27,12 +27,14 @@ import (
 // проверки «автор взят из metadata» и «зритель доехал до репозитория»
 // иначе ничего не стерегут.
 type fakeRepo struct {
-	created  *domain.Post
-	post     *domain.Post
-	feed     []domain.Post
-	gotView  uuid.UUID
-	gotLiker uuid.UUID
-	err      error
+	created   *domain.Post
+	post      *domain.Post
+	feed      []domain.Post
+	gotView   uuid.UUID
+	gotLiker  uuid.UUID
+	gotAuthor uuid.UUID
+	gotCursor *domain.FeedCursor
+	err       error
 }
 
 func (f *fakeRepo) Create(ctx context.Context, post *domain.Post) error {
@@ -50,6 +52,19 @@ func (f *fakeRepo) GetByID(ctx context.Context, id, viewerID uuid.UUID) (*domain
 
 func (f *fakeRepo) ListFeed(ctx context.Context, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, error) {
 	f.gotView = viewerID
+	if f.err != nil {
+		return nil, f.err
+	}
+	if len(f.feed) > limit {
+		return f.feed[:limit], nil
+	}
+	return f.feed, nil
+}
+
+func (f *fakeRepo) ListByAuthor(ctx context.Context, authorID, viewerID uuid.UUID, cursor *domain.FeedCursor, limit int) ([]domain.Post, error) {
+	f.gotAuthor = authorID
+	f.gotView = viewerID
+	f.gotCursor = cursor
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -161,7 +176,7 @@ func TestContractHasNoCallerFields(t *testing.T) {
 	}
 }
 
-// TestAllRPCsRequireCallerMetadata покрывает ВСЕ пять методов, а не один:
+// TestAllRPCsRequireCallerMetadata покрывает ВСЕ шесть методов, а не один:
 // защита, забытая в одном хендлере, — это дыра ровно того же размера.
 func TestAllRPCsRequireCallerMetadata(t *testing.T) {
 	client := newTestClient(t, &fakeRepo{post: testPost(uuid.New())})
@@ -178,6 +193,10 @@ func TestAllRPCsRequireCallerMetadata(t *testing.T) {
 		},
 		"GetFeed": func(ctx context.Context) error {
 			_, err := client.GetFeed(ctx, &postv1.GetFeedRequest{})
+			return err
+		},
+		"ListUserPosts": func(ctx context.Context) error {
+			_, err := client.ListUserPosts(ctx, &postv1.ListUserPostsRequest{AuthorId: id})
 			return err
 		},
 		"LikePost": func(ctx context.Context) error {
@@ -354,6 +373,45 @@ func TestUnlikePassesCallerAsLiker(t *testing.T) {
 	}
 	if repo.gotLiker != caller {
 		t.Errorf("снятие лайка записано от %v, want %v", repo.gotLiker, caller)
+	}
+}
+
+// Автор берётся из поля запроса (это фильтр), зритель — ТОЛЬКО из metadata.
+// Если бы автор брался из metadata, чужой профиль показывал бы твои посты;
+// если бы зритель брался из поля — клиент подсматривал бы чужие liked.
+func TestListUserPostsSplitsAuthorAndViewer(t *testing.T) {
+	repo := &fakeRepo{}
+	client := newTestClient(t, repo)
+
+	author, viewer := uuid.New(), uuid.New()
+
+	if _, err := client.ListUserPosts(callerCtx(viewer), &postv1.ListUserPostsRequest{AuthorId: author.String()}); err != nil {
+		t.Fatalf("ListUserPosts(): %v", err)
+	}
+	if repo.gotAuthor != author {
+		t.Errorf("authorID = %v, want %v (из поля запроса)", repo.gotAuthor, author)
+	}
+	if repo.gotView != viewer {
+		t.Errorf("viewerID = %v, want %v (из metadata)", repo.gotView, viewer)
+	}
+}
+
+func TestListUserPostsRequiresCallerMetadata(t *testing.T) {
+	client := newTestClient(t, &fakeRepo{})
+
+	// Без x-user-id: не «кривой аргумент», а «мы не знаем, кто пришёл».
+	_, err := client.ListUserPosts(context.Background(), &postv1.ListUserPostsRequest{AuthorId: uuid.NewString()})
+	if status.Code(err) != codes.Unauthenticated {
+		t.Errorf("код = %v, want Unauthenticated", status.Code(err))
+	}
+}
+
+func TestListUserPostsRejectsBadAuthorID(t *testing.T) {
+	client := newTestClient(t, &fakeRepo{})
+
+	_, err := client.ListUserPosts(callerCtx(uuid.New()), &postv1.ListUserPostsRequest{AuthorId: "не-uuid"})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("код = %v, want InvalidArgument", status.Code(err))
 	}
 }
 

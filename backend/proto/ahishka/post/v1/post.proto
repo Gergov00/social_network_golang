@@ -17,6 +17,7 @@ service PostService {
   rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
   rpc GetPost(GetPostRequest) returns (GetPostResponse);
   rpc GetFeed(GetFeedRequest) returns (GetFeedResponse);
+  rpc ListUserPosts(ListUserPostsRequest) returns (ListUserPostsResponse);
   rpc LikePost(LikePostRequest) returns (LikePostResponse);
   rpc UnlikePost(UnlikePostRequest) returns (UnlikePostResponse);
 }
@@ -79,4 +80,19 @@ message UnlikePostRequest {
 
 message UnlikePostResponse {
   Post post = 1;
+}
+
+// author_id тут — ФИЛЬТР «чьи посты показать», а не «кто пришёл». Это
+// по-прежнему вопрос «про что», и заголовочное правило файла он не нарушает:
+// личность зрителя (от неё зависит liked) едет только в metadata x-user-id.
+// Если когда-нибудь захочется вычислить автора из этого поля — нельзя.
+message ListUserPostsRequest {
+  string author_id = 1;
+  string cursor = 2;
+  int32 limit = 3;
+}
+
+message ListUserPostsResponse {
+  repeated Post posts = 1;
+  string next_cursor = 2;
 }
