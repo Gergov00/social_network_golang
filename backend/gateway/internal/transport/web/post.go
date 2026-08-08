@@ -265,15 +265,26 @@ func (h *PostHandler) Unlike(w http.ResponseWriter, r *http.Request) {
 
 // hydrateAuthors добирает профили авторов страницы ОДНИМ вызовом
 // user-service: N постов не должны превращаться в N round-trip'ов.
-//
-// Ошибка user-service ленту не роняет — это деградация, а не отказ: посты
-// уедут с author == null. Лента без имён полезнее, чем 500.
 func (h *PostHandler) hydrateAuthors(ctx context.Context, r *http.Request, posts []*postv1.Post) map[string]userDTO {
 	ids := make([]string, 0, len(posts))
-	seen := make(map[string]struct{}, len(posts))
-
 	for _, post := range posts {
-		id := post.GetAuthorId()
+		ids = append(ids, post.GetAuthorId())
+	}
+	return hydrateByIDs(ctx, r, h.users, ids)
+}
+
+// hydrateByIDs — общая пачка профилей с дедупом. СВОБОДНАЯ функция, а не
+// метод: ей пользуются и PostHandler, и CommentHandler (у них разные
+// gRPC-клиенты постов, но один и тот же user-service), а собирают id они
+// по-разному.
+//
+// Ошибка user-service запрос НЕ роняет — это деградация, а не отказ: контент
+// уедет с author == null. Лента без имён полезнее, чем 500.
+func hydrateByIDs(ctx context.Context, r *http.Request, users userv1.UserServiceClient, raw []string) map[string]userDTO {
+	ids := make([]string, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+
+	for _, id := range raw {
 		if id == "" {
 			continue
 		}
@@ -288,9 +299,9 @@ func (h *PostHandler) hydrateAuthors(ctx context.Context, r *http.Request, posts
 		return nil
 	}
 
-	resp, err := h.users.BatchGetUsers(ctx, &userv1.BatchGetUsersRequest{Ids: ids})
+	resp, err := users.BatchGetUsers(ctx, &userv1.BatchGetUsersRequest{Ids: ids})
 	if err != nil {
-		LoggerFrom(r.Context()).Warn("hydrating post authors failed", "error", err, "ids", len(ids))
+		LoggerFrom(r.Context()).Warn("hydrating authors failed", "error", err, "ids", len(ids))
 		return nil
 	}
 

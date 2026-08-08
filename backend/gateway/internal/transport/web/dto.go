@@ -70,6 +70,7 @@ type postDTO struct {
 	Author    *userDTO  `json:"author"`
 	Text      string    `json:"text"`
 	Likes     int32     `json:"likes"`
+	Comments  int32     `json:"comments"`
 	Liked     bool      `json:"liked"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -91,6 +92,7 @@ func toPostDTO(post *postv1.Post, authors map[string]userDTO) postDTO {
 		AuthorID:  post.GetAuthorId(),
 		Text:      post.GetText(),
 		Likes:     post.GetLikesCount(),
+		Comments:  post.GetCommentsCount(),
 		Liked:     post.GetLiked(),
 		CreatedAt: post.GetCreatedAt().AsTime(),
 		UpdatedAt: post.GetUpdatedAt().AsTime(),
@@ -104,5 +106,54 @@ func toPostDTO(post *postv1.Post, authors map[string]userDTO) postDTO {
 // createPostRequest — тело POST /posts. Поля автора тут нет и его нельзя
 // добавлять: кто автор, решает только JWT (см. withCaller).
 type createPostRequest struct {
+	Text string `json:"text"`
+}
+
+// commentDTO — форма комментария наружу. Author подставляет gateway из
+// user-service (post_db имён не хранит). Author == nil — законное состояние,
+// ровно как у postDTO: фронт обязан нарисовать заглушку, а не считать ошибкой.
+type commentDTO struct {
+	ID        string    `json:"id"`
+	PostID    string    `json:"postId"`
+	AuthorID  string    `json:"authorId"`
+	Author    *userDTO  `json:"author"`
+	Text      string    `json:"text"`
+	Likes     int32     `json:"likes"`
+	Liked     bool      `json:"liked"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// commentsResponse — страница комментариев. NextCursor пустой, если страниц
+// больше нет. Комментарии идут ПО ВОЗРАСТАНИЮ времени, в отличие от ленты.
+type commentsResponse struct {
+	Comments   []commentDTO `json:"comments"`
+	NextCursor string       `json:"nextCursor"`
+}
+
+func toCommentDTO(comment *postv1.Comment, authors map[string]userDTO) commentDTO {
+	if comment == nil {
+		return commentDTO{}
+	}
+
+	dto := commentDTO{
+		ID:        comment.GetId(),
+		PostID:    comment.GetPostId(),
+		AuthorID:  comment.GetAuthorId(),
+		Text:      comment.GetText(),
+		Likes:     comment.GetLikesCount(),
+		Liked:     comment.GetLiked(),
+		CreatedAt: comment.GetCreatedAt().AsTime(),
+		UpdatedAt: comment.GetUpdatedAt().AsTime(),
+	}
+	if author, ok := authors[comment.GetAuthorId()]; ok {
+		dto.Author = &author
+	}
+	return dto
+}
+
+// createCommentRequest — тело POST /posts/{id}/comments. Полей автора и поста
+// тут нет и их нельзя добавлять: автор — из JWT, пост — из пути.
+type createCommentRequest struct {
 	Text string `json:"text"`
 }
