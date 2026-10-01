@@ -59,6 +59,20 @@ test('показывает ветку комментариев', async () => {
   expect(await screen.findByText('первый комментарий')).toBeInTheDocument();
 });
 
+test('ASC сохраняет микросекунды RFC3339Nano перед сравнением ID', async () => {
+  server.use(
+    ...authed(),
+    http.get('/posts/p1/comments', () => HttpResponse.json({ comments: [
+      comment({ id: 'z', text: 'раньше', createdAt: '2026-08-08T12:05:00.000100Z' }),
+      comment({ id: 'a', text: 'позже', createdAt: '2026-08-08T15:05:00.000900+03:00' }),
+      comment({ id: 'b', text: 'при равном времени после a', createdAt: '2026-08-08T12:05:00.0009Z' }),
+    ], nextCursor: '' })),
+  );
+  renderPost();
+  await screen.findByText('при равном времени после a');
+  expect([...document.querySelectorAll('.c-text')].map((el) => el.textContent)).toEqual(['раньше', 'позже', 'при равном времени после a']);
+});
+
 test('комментарий без автора отрисован, а не пропущен', async () => {
   // gateway отдаёт author: null, когда профиль не найден или user-service
   // не ответил. Это деградация, а не ошибка: прятать реплику нельзя.
@@ -121,7 +135,7 @@ test('ошибка отправки показана, а текст не про�
   expect(field).toHaveValue('моя реплика');
 });
 
-test('комментарий из следующей страницы не дублируется после отправки', async () => {
+test('комментарий из следующей страницы не дублируется и сохраняет ASC после отправки', async () => {
   // useAddComment дописывает свежий комментарий в конец последней
   // ЗАГРУЖЕННОЙ страницы, не сдвигая её nextCursor — поэтому тот же
   // комментарий приходит ещё раз в следующей серверной странице (сервер не
@@ -138,14 +152,14 @@ test('комментарий из следующей страницы не ду�
         // Комментарий "моя реплика" (id c-new) снова приходит от сервера —
         // ровно тот, что клиент уже дописал локально после отправки.
         return HttpResponse.json({
-          comments: [comment({ id: 'c-new', text: 'моя реплика', createdAt: '2026-08-08T12:10:00Z' })],
+          comments: [comment({ id: 'c-middle', text: 'середина', createdAt: '2026-08-08T12:07:00Z' }), comment({ id: 'c-new', text: 'моя реплика', createdAt: '2026-08-08T12:10:00Z' })],
           nextCursor: '',
         });
       }
       return HttpResponse.json({ comments: [comment()], nextCursor: 'cursor-1' });
     }),
     http.post('/posts/p1/comments', () =>
-      HttpResponse.json(comment({ id: 'c-new', text: 'моя реплика' }), { status: 201 }),
+      HttpResponse.json(comment({ id: 'c-new', text: 'моя реплика', createdAt: '2026-08-08T12:10:00Z' }), { status: 201 }),
     ),
   );
 
@@ -160,6 +174,8 @@ test('комментарий из следующей страницы не ду�
   await waitFor(() => expect(page2Requested).toBe(true));
 
   expect(screen.getAllByText('моя реплика')).toHaveLength(1);
+  await screen.findByText('середина');
+  expect([...document.querySelectorAll('.c-text')].map((el) => el.textContent)).toEqual(['первый комментарий', 'середина', 'моя реплика']);
 });
 
 test('счётчик комментариев на карточке растёт после отправки', async () => {

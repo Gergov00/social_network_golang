@@ -14,6 +14,8 @@ type CredentialRepository interface {
 }
 
 type RefreshTokenRepository interface {
+	// LockFamily serializes rotation and revocation until the transaction ends.
+	LockFamily(ctx context.Context, familyID uuid.UUID) error
 	Create(ctx context.Context, token *RefreshToken) error
 	GetByHash(ctx context.Context, tokenHash string) (*RefreshToken, error)
 	MarkUsed(ctx context.Context, id uuid.UUID) (bool, error)

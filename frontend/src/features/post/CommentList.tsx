@@ -7,6 +7,17 @@ import { Spinner } from '../../ui/Spinner';
 import { relativeTime } from '../feed/PostCard';
 import { useComments, useCommentLike } from './useComments';
 
+function compareCreatedAt(a: string, b: string): number {
+  // Date.parse truncates sub-millisecond digits from Go's RFC3339Nano.
+  // Compare UTC whole seconds, then the normalized nanosecond fraction.
+  const fraction = /\.(\d+)(?=Z|[+-])/;
+  const seconds = Date.parse(a.replace(fraction, '')) - Date.parse(b.replace(fraction, ''));
+  if (seconds) return seconds;
+  const left = (a.match(fraction)?.[1] ?? '').padEnd(9, '0');
+  const right = (b.match(fraction)?.[1] ?? '').padEnd(9, '0');
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function CommentRow({ comment, postId }: { comment: CommentDTO; postId: string }) {
   const like = useCommentLike(postId);
   const author = comment.author;
@@ -54,7 +65,10 @@ export function CommentList({ postId }: { postId: string }) {
   // прийти не может.
   const comments = [...new Map(
     (query.data?.pages.flatMap((page) => page.comments) ?? []).map((c) => [c.id, c]),
-  ).values()];
+  ).values()].sort((a, b) => {
+    const time = compareCreatedAt(a.createdAt, b.createdAt);
+    return time || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  });
 
   return (
     <div className="comment-list">

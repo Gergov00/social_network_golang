@@ -1,5 +1,6 @@
 import { tokenStore } from './tokenStore';
 import type { TokenResponse } from './types';
+import { queueAuth } from './authQueue';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -27,6 +28,11 @@ export function setOnAuthLost(cb: () => void): void {
 // (RevokeByFamilyID), разлогинив пользователя везде. Поэтому все, кто
 // поймал 401, ждут один и тот же промис.
 let refreshing: Promise<string> | null = null;
+let refreshingEpoch = -1;
+
+export function assertSession(epoch: number): void {
+  if (epoch !== tokenStore.epoch()) throw new DOMException('Session changed', 'AbortError');
+}
 
 async function refreshToken(): Promise<string> {
   const res = await fetch('/auth/refresh', {
@@ -46,20 +52,29 @@ async function refreshToken(): Promise<string> {
 // и обычный запрос, поймавший 401, стартуют одновременно (ровно сценарий
 // bootstrap-а: восстановление сессии параллельно с загрузкой ленты/`/me`).
 export function refreshOnce(): Promise<string> {
-  if (!refreshing) {
-    refreshing = refreshToken()
+  const epoch = tokenStore.epoch();
+  if (!refreshing || refreshingEpoch !== epoch) {
+    refreshingEpoch = epoch;
+    const promise = queueAuth(() => {
+      assertSession(epoch);
+      return refreshToken();
+    })
       .then((token) => {
+        assertSession(epoch);
         tokenStore.set(token);
         return token;
       })
       .catch((err) => {
-        tokenStore.clear();
-        onAuthLost();
+        if (epoch === tokenStore.epoch()) {
+          tokenStore.clear();
+          onAuthLost();
+        }
         throw err;
       })
       .finally(() => {
-        refreshing = null;
+        if (refreshing === promise) refreshing = null;
       });
+    refreshing = promise;
   }
   return refreshing;
 }
@@ -89,12 +104,20 @@ async function toError(res: Response): Promise<ApiError> {
 }
 
 export async function apiFetch<T>(path: string, init: Init = {}): Promise<T> {
+  const epoch = tokenStore.epoch();
   let res = await raw(path, init, tokenStore.get());
+  assertSession(epoch);
 
   // skipAuth защищает от рекурсии: сам /auth/refresh обновляться не должен.
   if (res.status === 401 && !init.skipAuth) {
     const token = await refreshOnce();
+    assertSession(epoch);
     res = await raw(path, init, token);
+    assertSession(epoch);
+    if (res.status === 401) {
+      tokenStore.clear();
+      onAuthLost();
+    }
   }
 
   if (!res.ok) {
@@ -106,5 +129,6 @@ export async function apiFetch<T>(path: string, init: Init = {}): Promise<T> {
     return null as T;
   }
   const text = await res.text();
+  assertSession(epoch);
   return (text ? JSON.parse(text) : null) as T;
 }

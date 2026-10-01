@@ -22,6 +22,16 @@ func NewRefresh(pool *pgxpool.Pool) *RefreshRepo {
 	}
 }
 
+func (r *RefreshRepo) LockFamily(ctx context.Context, familyID uuid.UUID) error {
+	if _, ok := ctx.Value(txKey{}).(pgx.Tx); !ok {
+		return errors.New("refresh family lock requires a transaction")
+	}
+	// Transaction locks work across service instances and are released on rollback
+	// as well as commit. Hash collisions only serialize unrelated families.
+	_, err := r.db(ctx).Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "auth.refresh.family:"+familyID.String())
+	return err
+}
+
 func (r *RefreshRepo) Create(ctx context.Context, token *domain.RefreshToken) error {
 	query := `INSERT INTO refresh_tokens (id, user_id, token_hash, family_id, used_at, revoked_at, expires_at, user_agent, ip, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 	_, err := r.db(ctx).Exec(ctx, query, token.ID, token.UserID, token.TokenHash, token.FamilyID, token.UsedAt, token.RevokedAt, token.ExpiresAt, token.UserAgent, token.IP, token.CreatedAt)
@@ -35,7 +45,7 @@ func (r *RefreshRepo) GetByHash(ctx context.Context, tokenHash string) (*domain.
 	var token domain.RefreshToken
 
 	query := `SELECT id, user_id, token_hash, family_id, used_at, revoked_at, expires_at, user_agent, ip, created_at FROM refresh_tokens WHERE token_hash = $1`
-	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.FamilyID, &token.UsedAt, &token.RevokedAt, &token.ExpiresAt, &token.UserAgent, &token.IP, &token.CreatedAt)
+	err := r.db(ctx).QueryRow(ctx, query, tokenHash).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.FamilyID, &token.UsedAt, &token.RevokedAt, &token.ExpiresAt, &token.UserAgent, &token.IP, &token.CreatedAt)
 	if err != nil {
 		if errors.Is(err,
 			pgx.ErrNoRows) {
@@ -47,7 +57,7 @@ func (r *RefreshRepo) GetByHash(ctx context.Context, tokenHash string) (*domain.
 }
 
 func (r *RefreshRepo) MarkUsed(ctx context.Context, id uuid.UUID) (bool, error) {
-	query := `UPDATE refresh_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`
+	query := `UPDATE refresh_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL AND revoked_at IS NULL`
 	tag, err := r.db(ctx).Exec(ctx, query, id)
 	if err != nil {
 		return false, err
@@ -68,14 +78,20 @@ func (r *RefreshRepo) RevokeByUserID(ctx context.Context, userID uuid.UUID) erro
 }
 
 func (r *RefreshRepo) RevokeByFamilyID(ctx context.Context, familyID uuid.UUID) error {
-	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`
-	_, err := r.pool.Exec(ctx, query, familyID)
-	return err
+	// Reuse revocation must survive the rollback of the rotation transaction.
+	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
+		return errors.New("refresh family revocation must run outside the rotation transaction")
+	}
+	return NewTxManager(r.pool).WithinTx(ctx, func(txCtx context.Context) error {
+		if err := r.LockFamily(txCtx, familyID); err != nil {
+			return err
+		}
+		query := `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`
+		_, err := r.db(txCtx).Exec(txCtx, query, familyID)
+		return err
+	})
 }
 
 func (r *RefreshRepo) db(ctx context.Context) executor {
-	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
-		return tx
-	}
-	return r.pool
+	return executorFor(ctx, r.pool)
 }

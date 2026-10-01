@@ -11,6 +11,89 @@ afterEach(() => {
   setOnAuthLost(() => {});
 });
 
+test('повторный 401 завершает сессию после успешного refresh', async () => {
+  const lost = vi.fn();
+  setOnAuthLost(lost);
+  server.use(
+    http.get('/me', () => new HttpResponse(null, { status: 401 })),
+    http.post('/auth/refresh', () => HttpResponse.json({ access_token: 'fresh' })),
+  );
+  await expect(apiFetch('/me')).rejects.toMatchObject({ status: 401 });
+  expect(lost).toHaveBeenCalledTimes(1);
+  expect(tokenStore.get()).toBeNull();
+});
+
+test('завершившийся после выхода refresh не возвращает токен', async () => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let started = false;
+  server.use(http.post('/auth/refresh', async () => {
+    started = true;
+    await pending;
+    return HttpResponse.json({ access_token: 'obsolete' });
+  }));
+  const request = authApi.refresh().catch(() => {});
+  while (!started) await new Promise((r) => setTimeout(r, 1));
+  tokenStore.clear();
+  release();
+  await request;
+  expect(tokenStore.get()).toBeNull();
+});
+
+test('старый 401 после смены аккаунта не refresh-ит новую сессию', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let started = false;
+  let refreshCalls = 0;
+  server.use(
+    http.get('/feed', async () => { started = true; await gate; return new HttpResponse(null, { status: 401 }); }),
+    http.post('/auth/refresh', () => { refreshCalls += 1; return HttpResponse.json({ access_token: 'obsolete' }); }),
+  );
+  const request = apiFetch('/feed').catch((error) => error);
+  while (!started) await new Promise((resolve) => setTimeout(resolve, 1));
+  tokenStore.clear();
+  tokenStore.set('B');
+  release();
+  expect(await request).toMatchObject({ name: 'AbortError' });
+  expect(refreshCalls).toBe(0);
+  expect(tokenStore.get()).toBe('B');
+});
+
+test('старый ответ login после выхода не возвращает access token', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let started = false;
+  server.use(http.post('/auth/login', async () => { started = true; await gate; return HttpResponse.json({ access_token: 'obsolete' }); }));
+  const request = authApi.login('A', 'password').catch((error) => error);
+  while (!started) await new Promise((resolve) => setTimeout(resolve, 1));
+  tokenStore.clear();
+  release();
+  expect(await request).toMatchObject({ name: 'AbortError' });
+  expect(tokenStore.get()).toBeNull();
+});
+
+test('новый login ждёт применения cookie старого refresh и logout', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const order: string[] = [];
+  server.use(
+    http.post('/auth/refresh', async () => { order.push('refresh-start'); await gate; order.push('refresh-cookie'); return HttpResponse.json({ access_token: 'A' }, { headers: { 'Set-Cookie': 'refresh_token=A; HttpOnly' } }); }),
+    http.post('/auth/logout', () => { order.push('logout-cookie'); return new HttpResponse(null, { status: 204, headers: { 'Set-Cookie': 'refresh_token=; Max-Age=0' } }); }),
+    http.post('/auth/login', () => { order.push('login-cookie-B'); return HttpResponse.json({ access_token: 'B' }, { headers: { 'Set-Cookie': 'refresh_token=B; HttpOnly' } }); }),
+  );
+  const oldRefresh = authApi.refresh().catch(() => {});
+  while (!order.length) await new Promise((resolve) => setTimeout(resolve, 1));
+  const logout = authApi.logout().catch(() => {});
+  const login = authApi.login('B', 'password');
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const dispatchedBeforeRelease = [...order];
+  release();
+  await Promise.all([oldRefresh, logout, login]);
+  expect(dispatchedBeforeRelease).toEqual(['refresh-start']);
+  expect(order).toEqual(['refresh-start', 'refresh-cookie', 'logout-cookie', 'login-cookie-B']);
+  expect(tokenStore.get()).toBe('B');
+});
+
 test('подставляет Authorization из tokenStore', async () => {
   let seen: string | null = null;
   server.use(

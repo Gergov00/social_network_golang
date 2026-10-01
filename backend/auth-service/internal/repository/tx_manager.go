@@ -27,6 +27,13 @@ func NewTxManager(px *pgxpool.Pool) *TxManager {
 
 type txKey struct{}
 
+func executorFor(ctx context.Context, pool *pgxpool.Pool) executor {
+	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
+		return tx
+	}
+	return pool
+}
+
 func (m *TxManager) WithinTx(ctx context.Context, fn func(ctx context.Context) error) error {
 	tx, err := m.px.Begin(ctx)
 	if err != nil {

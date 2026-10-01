@@ -53,13 +53,16 @@ func (s *AuthService) Register(ctx context.Context, email, password string, meta
 		CreatedAt:    time.Now(),
 	}
 
-	err = s.credRepo.Create(ctx, cred)
-	if err != nil {
-		return domain.TokenPair{}, err
-	}
-
 	familyID := uuid.New()
-	tokenPair, err := s.issueTokens(ctx, cred.ID, familyID, meta)
+	var tokenPair domain.TokenPair
+	err = s.tx.WithinTx(ctx, func(txCtx context.Context) error {
+		if err := s.credRepo.Create(txCtx, cred); err != nil {
+			return err
+		}
+		var err error
+		tokenPair, err = s.issueTokens(txCtx, cred.ID, familyID, meta)
+		return err
+	})
 	if err != nil {
 		return domain.TokenPair{}, err
 	}
@@ -67,8 +70,6 @@ func (s *AuthService) Register(ctx context.Context, email, password string, meta
 	if err := s.publisher.PublishUserRegistered(ctx, cred.ID, cred.Email); err != nil {
 		s.logger.Error("publish user.registered failed", "user_id", cred.ID, "error", err)
 	}
-
-
 	return tokenPair, nil
 }
 
@@ -124,6 +125,20 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta dom
 	var tokenPair domain.TokenPair
 	reuse := false
 	err = s.tx.WithinTx(ctx, func(txCtx context.Context) error {
+		if err := s.refreshRepo.LockFamily(txCtx, storedToken.FamilyID); err != nil {
+			return err
+		}
+		// The initial snapshot may predate logout/reuse or another rotation.
+		current, err := s.refreshRepo.GetByHash(txCtx, hash)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return domain.ErrInvalidToken
+			}
+			return err
+		}
+		if current.RevokedAt != nil || !time.Now().Before(current.ExpiresAt) {
+			return domain.ErrInvalidToken
+		}
 		marked, err := s.refreshRepo.MarkUsed(txCtx, storedToken.ID)
 		if err != nil {
 			return err
@@ -141,7 +156,11 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta dom
 			"user_id", storedToken.UserID,
 			"family_id", storedToken.FamilyID,
 		)
-		if err := s.refreshRepo.RevokeByFamilyID(ctx, storedToken.FamilyID); err != nil {
+		// Once reuse is detected, a client disconnect must not cancel the
+		// security action. Keep the independent revocation bounded.
+		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := s.refreshRepo.RevokeByFamilyID(revokeCtx, storedToken.FamilyID); err != nil {
 			return domain.TokenPair{}, err
 		}
 		return domain.TokenPair{}, domain.ErrTokenReused

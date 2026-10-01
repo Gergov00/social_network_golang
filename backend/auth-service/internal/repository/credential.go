@@ -28,7 +28,7 @@ func NewCredential(pool *pgxpool.Pool) *CredentialRepo {
 func (c *CredentialRepo) Create(ctx context.Context, credential *domain.Credential) error {
 	query := `INSERT INTO credentials (id, email, password_hash, created_at) VALUES ($1, $2, $3, $4)`
 
-	_, err := c.pool.Exec(ctx, query, credential.ID, credential.Email, credential.PasswordHash, credential.CreatedAt)
+	_, err := executorFor(ctx, c.pool).Exec(ctx, query, credential.ID, credential.Email, credential.PasswordHash, credential.CreatedAt)
 	if err != nil {
 		return mapCredentialErr(err)
 	}

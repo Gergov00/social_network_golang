@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { postsApi } from '../../api/posts';
+import { tokenStore } from '../../api/tokenStore';
 import { useAuth } from '../../auth/AuthContext';
 import { Avatar } from '../../ui/Avatar';
 import { ErrorBox } from '../../ui/ErrorBox';
@@ -18,7 +19,9 @@ export function Composer() {
 
   const publish = useMutation({
     mutationFn: (value: string) => postsApi.createPost(value),
-    onSuccess: (post) => {
+    onMutate: () => tokenStore.epoch(),
+    onSuccess: (post, _value, epoch) => {
+      if (epoch !== tokenStore.epoch()) return;
       prepend(post);
       setText('');
       setOpen(false);
