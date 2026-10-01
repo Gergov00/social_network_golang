@@ -1,5 +1,8 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { commentsApi } from '../../api/comments';
+import { tokenStore } from '../../api/tokenStore';
+import { assertSession } from '../../api/client';
+import { lockMutation } from '../../api/mutationLock';
 import type { CommentDTO, CommentsPage, PostDTO } from '../../api/types';
 import { listFilter, patchList, type ListCache } from '../feed/useLike';
 
@@ -26,7 +29,9 @@ export function useAddComment(postId: string) {
 
   return useMutation({
     mutationFn: (text: string) => commentsApi.create(postId, text),
-    onSuccess: (comment) => {
+    onMutate: () => tokenStore.epoch(),
+    onSuccess: (comment, _text, epoch) => {
+      if (epoch !== tokenStore.epoch()) return;
       queryClient.setQueryData<CommentsCache>(commentsKey(postId), (old) => {
         if (!old) return old;
         const pages = old.pages.slice();
@@ -75,7 +80,11 @@ export function useCommentLike(postId: string) {
 
     // Оптимистично: счётчик двигается до ответа сервера.
     onMutate: async ({ id, liked }) => {
+      const epoch = tokenStore.epoch();
+      const release = await lockMutation(queryClient, `${epoch}:comment:${id}`);
+      if (epoch !== tokenStore.epoch()) { release(); assertSession(epoch); }
       await queryClient.cancelQueries({ queryKey: commentsKey(postId) });
+      if (epoch !== tokenStore.epoch()) { release(); assertSession(epoch); }
       const snapshot = queryClient.getQueryData<CommentsCache>(commentsKey(postId));
 
       queryClient.setQueryData<CommentsCache>(commentsKey(postId), (old) => {
@@ -83,23 +92,27 @@ export function useCommentLike(postId: string) {
         if (!current) return old;
         return patchComments(old, id, {
           liked: !liked,
-          likes: current.likes + (liked ? -1 : 1),
+          likes: current.likes + Number(!liked) - Number(current.liked),
         });
       });
 
-      return { snapshot };
+      return { snapshot, epoch, release };
     },
 
     // Откат: иначе на экране останется число, которого нет в базе.
-    onError: (_err, _vars, context) => {
-      if (context?.snapshot) queryClient.setQueryData(commentsKey(postId), context.snapshot);
+    onError: (_err, { id }, context) => {
+      if (!context || context.epoch !== tokenStore.epoch()) return;
+      const previous = context.snapshot?.pages.flatMap((page) => page.comments).find((c) => c.id === id);
+      if (previous) queryClient.setQueryData<CommentsCache>(commentsKey(postId), (old) => patchComments(old, id, { liked: previous.liked, likes: previous.likes }));
     },
 
     // Сервер вернул комментарий целиком — его числа и есть истина.
-    onSuccess: (fresh) => {
+    onSuccess: (fresh, _vars, context) => {
+      if (!context || context.epoch !== tokenStore.epoch()) return;
       queryClient.setQueryData<CommentsCache>(commentsKey(postId), (old) =>
         patchComments(old, fresh.id, { liked: fresh.liked, likes: fresh.likes }),
       );
     },
+    onSettled: (_data, _error, _vars, context) => context?.release(),
   });
 }

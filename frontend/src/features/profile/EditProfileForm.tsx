@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { usersApi } from '../../api/users';
+import { tokenStore } from '../../api/tokenStore';
 import type { UpdateMePayload, UserDTO } from '../../api/types';
 
 type Props = { user: UserDTO; onDone: (updated: UserDTO) => void; onCancel: () => void };
@@ -33,7 +34,8 @@ export function EditProfileForm({ user, onDone, onCancel }: Props) {
 
   const save = useMutation({
     mutationFn: (patch: UpdateMePayload) => usersApi.updateMe(patch),
-    onSuccess: onDone,
+    onMutate: () => tokenStore.epoch(),
+    onSuccess: (updated, _patch, epoch) => { if (epoch === tokenStore.epoch()) onDone(updated); },
     onError: (err) =>
       setError(
         err instanceof ApiError && err.status === 409

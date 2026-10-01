@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../api/auth';
-import { ApiError, setOnAuthLost } from '../api/client';
+import { ApiError, assertSession, setOnAuthLost } from '../api/client';
 import { tokenStore } from '../api/tokenStore';
 import { usersApi } from '../api/users';
 import type { UserDTO } from '../api/types';
@@ -45,11 +46,15 @@ type MeOutcome = { user: UserDTO | null; error: string | null };
 // - всё остальное (5xx/504/сетевой обрыв) — бэкенд моргнул: не ретраим
 //   бесконечно, остаёмся authed, отдаём текст для кнопки «Повторить».
 async function resolveMe(): Promise<MeOutcome> {
+  const epoch = tokenStore.epoch();
   for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt += 1) {
+    assertSession(epoch);
     try {
       const user = await usersApi.getMe();
+      assertSession(epoch);
       return { user, error: null };
     } catch (err) {
+      assertSession(epoch);
       if (err instanceof ApiError && err.status === 401) throw err;
 
       const isMissing = err instanceof ApiError && err.status === 404;
@@ -64,21 +69,25 @@ async function resolveMe(): Promise<MeOutcome> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<Status>('loading');
   const [user, setUser] = useState<UserDTO | null>(null);
   const [meError, setMeError] = useState<string | null>(null);
 
-  // Сессию может потерять любой запрос (провалившийся refresh) — тогда
-  // приложение обязано перейти в анонимное состояние целиком. Это ЕДИНСТВЕННЫЙ
-  // легитимный повод разлогинить: настоящий провал refresh (401 и т.п.).
+  // Все границы сессии синхронно очищают клиентские данные. Отмена queries
+  // останавливает retry; epoch в API и мутациях блокирует поздние callbacks.
   useEffect(() => {
-    setOnAuthLost(() => {
+    const reset = () => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
       setUser(null);
       setMeError(null);
       setStatus('anon');
-    });
-    return () => setOnAuthLost(() => {});
-  }, []);
+    };
+    const unsubscribe = tokenStore.subscribe(reset);
+    setOnAuthLost(reset);
+    return () => { unsubscribe(); setOnAuthLost(() => {}); };
+  }, [queryClient]);
 
   // Старт: пробуем поднять сессию по httpOnly-cookie. Провал именно
   // authApi.refresh() (401/сессии нет) — единственный повод остаться/стать
@@ -87,21 +96,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // колбэк почему-то не сработал.
   useEffect(() => {
     let cancelled = false;
+    const epoch = tokenStore.epoch();
 
     (async () => {
       try {
         await authApi.refresh();
       } catch {
-        if (!cancelled) {
+        if (!cancelled && epoch === tokenStore.epoch()) {
           tokenStore.clear();
           setStatus('anon');
         }
         return;
       }
 
+      if (cancelled || epoch !== tokenStore.epoch()) return;
+
       try {
         const { user: me, error } = await resolveMe();
-        if (!cancelled) {
+        if (!cancelled && epoch === tokenStore.epoch()) {
           setUser(me);
           setMeError(error);
           setStatus('authed');
@@ -119,12 +131,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    tokenStore.clear();
+    const epoch = tokenStore.epoch();
     // Токен уже лежит в tokenStore к этому моменту (authApi.login это делает).
     // Дальнейший провал /me (404/5xx) — НЕ повод сказать пользователю
     // «не удалось войти»: логин прошёл успешно.
     await authApi.login(email, password);
+    assertSession(epoch);
     try {
       const { user: me, error } = await resolveMe();
+      assertSession(epoch);
       setUser(me);
       setMeError(error);
       setStatus('authed');
@@ -136,9 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
+    tokenStore.clear();
+    const epoch = tokenStore.epoch();
     await authApi.register(email, password);
+    assertSession(epoch);
     try {
       const { user: me, error } = await resolveMe();
+      assertSession(epoch);
       setUser(me);
       setMeError(error);
       setStatus('authed');
@@ -148,25 +168,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    // Локальный выход уже случился к моменту, когда мы дошли до finally —
-    // сетевой сбой /auth/logout залогировать можно, но ронять на нём вызывающую
-    // сторону (Topbar зовёт `void logout()` без .catch) нельзя: это дало бы
-    // unhandled rejection на штатном пути выхода.
+    // authApi.logout завершает локальную сессию до сетевого запроса.
+    // Topbar вызывает void logout(): ошибку запроса поглощаем здесь.
     try {
       await authApi.logout();
     } catch (err) {
       console.error('POST /auth/logout не удался (сессия всё равно завершена локально)', err);
-    } finally {
-      tokenStore.clear();
-      setUser(null);
-      setMeError(null);
-      setStatus('anon');
     }
   }, []);
 
   const refreshUser = useCallback(async () => {
+    const epoch = tokenStore.epoch();
     try {
       const { user: me, error } = await resolveMe();
+      assertSession(epoch);
       setUser(me);
       setMeError(error);
     } catch {

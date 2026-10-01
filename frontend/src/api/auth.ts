@@ -1,25 +1,36 @@
-import { apiFetch, refreshOnce } from './client';
+import { apiFetch, assertSession, refreshOnce } from './client';
 import { tokenStore } from './tokenStore';
 import type { TokenResponse } from './types';
+import { queueAuth } from './authQueue';
 
 // skipAuth на всех: старый access-токен этим ручкам не нужен, а на logout и
 // refresh он ещё и вреден — они работают по httpOnly-cookie.
 export const authApi = {
   async register(email: string, password: string): Promise<void> {
-    const res = await apiFetch<TokenResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-      skipAuth: true,
+    const epoch = tokenStore.epoch();
+    const res = await queueAuth(() => {
+      assertSession(epoch);
+      return apiFetch<TokenResponse>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+        skipAuth: true,
+      });
     });
+    assertSession(epoch);
     tokenStore.set(res.access_token);
   },
 
   async login(email: string, password: string): Promise<void> {
-    const res = await apiFetch<TokenResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-      skipAuth: true,
+    const epoch = tokenStore.epoch();
+    const res = await queueAuth(() => {
+      assertSession(epoch);
+      return apiFetch<TokenResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+        skipAuth: true,
+      });
     });
+    assertSession(epoch);
     tokenStore.set(res.access_token);
   },
 
@@ -37,7 +48,7 @@ export const authApi = {
   },
 
   async logout(): Promise<void> {
-    await apiFetch('/auth/logout', { method: 'POST', skipAuth: true });
     tokenStore.clear();
+    await queueAuth(() => apiFetch('/auth/logout', { method: 'POST', skipAuth: true }));
   },
 };
