@@ -26,7 +26,7 @@ func Load() (*Config, error) {
 		Issuer:       getEnv("JWT_ISSUER", "auth-service"),
 		AccessTTL:    getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:   getEnvDuration("JWT_REFRESH_TTL", 30*24*time.Hour),
-		HTTPPort:     getEnv("HTTP_PORT", ":8080"),
+		HTTPPort:     getEnv("HTTP_PORT", "8080"),
 		CookieSecure: getEnvBool("COOKIE_SECURE", true),
 		LogLevel:     getEnv("LOG_LEVEL", "info"),
 		NATSURL:      getEnv("NATS_URL", "nats://localhost:4222"),
